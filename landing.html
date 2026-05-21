@@ -340,6 +340,33 @@
     .qs-blink { animation: blink 1s step-end infinite; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
     @media (max-width: 700px) { .qs-grid { grid-template-columns: 1fr; } }
+
+    /* ── LIVE DEMO ── */
+    .demo-browser {
+      max-width: 1100px; margin: 0 auto;
+      border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+      box-shadow: 0 0 60px rgba(0,255,200,0.05);
+    }
+    .demo-bar {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.6rem 1rem; background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .demo-dots { display: flex; gap: 0.4rem; }
+    .demo-dots span { width: 10px; height: 10px; border-radius: 50%; display: block; }
+    .demo-url {
+      flex: 1; text-align: center;
+      font-family: 'Courier New', monospace; font-size: 0.78rem; color: var(--muted);
+      background: var(--bg); padding: 0.28rem 1rem; border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .demo-open {
+      font-size: 0.78rem; font-weight: 600; color: var(--teal);
+      text-decoration: none; white-space: nowrap;
+      transition: opacity .2s;
+    }
+    .demo-open:hover { opacity: 0.7; }
+    .demo-frame { width: 100%; height: 700px; border: none; display: block; background: #fff; }
     .qs-launchers { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.6rem; }
     .qs-launcher-row {
       display: flex; align-items: flex-start; gap: 0.75rem;
@@ -513,6 +540,31 @@
       </div>
     </div>
 
+  </div>
+</section>
+
+<!-- LIVE DEMO -->
+<section id="demo">
+  <p class="section-label">Live Demo</p>
+  <h2>Try It in Your Browser</h2>
+  <p class="section-sub">The full app — running locally at localhost:8501. Launch the app first, then interact below.</p>
+
+  <div class="demo-browser">
+    <div class="demo-bar">
+      <div class="demo-dots">
+        <span style="background:#F87171"></span>
+        <span style="background:#FBBF24"></span>
+        <span style="background:#34D399"></span>
+      </div>
+      <div class="demo-url">http://localhost:8501</div>
+      <a class="demo-open" href="http://localhost:8501" target="_blank">↗ Open in new tab</a>
+    </div>
+    <iframe
+      src="http://localhost:8501"
+      class="demo-frame"
+      title="AI CFO System — Streamlit App"
+      allow="fullscreen">
+    </iframe>
   </div>
 </section>
 
