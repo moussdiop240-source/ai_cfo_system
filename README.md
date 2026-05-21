@@ -175,7 +175,14 @@ All findings cite specific ASC/IAS standards. Each finding card shows severity (
 
 ### Option A — Windows One-Click Launcher (Recommended)
 
-Double-click **`Launch AI CFO.bat`** in the project root. It handles everything automatically:
+Two launchers are included in the project root:
+
+| File | When to use |
+|---|---|
+| **`Launch AI CFO.bat`** | Standard launch — double-click for everyday use |
+| **`Launch AI CFO (Admin).bat`** | Admin launch — triggers a UAC elevation prompt, then runs the app with administrator privileges |
+
+Double-click either file. Both handle everything automatically:
 
 ```
 [1/4] Checking Python installation...   OK  Python 3.11.x
@@ -184,14 +191,20 @@ Double-click **`Launch AI CFO.bat`** in the project root. It handles everything 
 [4/4] Starting AI CFO System...         Browser opens at http://localhost:8501
 ```
 
-**What it does:**
-- Verifies Python 3.10+ is installed (prints a download link if not)
-- Creates an isolated `.venv` virtual environment on first run
-- Installs all dependencies from `requirements.txt` (skipped on subsequent runs)
-- Launches the Streamlit app and opens your browser automatically
-- Pauses on any error so you can read the message
+**What they do:**
+- Verify Python 3.10+ is installed (prints a download link if not)
+- Create an isolated `.venv` virtual environment on first run
+- Install all dependencies from `requirements.txt` (skipped on subsequent runs)
+- Launch the Streamlit app and open your browser automatically
+- Pause on any error so you can read the message
+
+**Admin launcher extras (`Launch AI CFO (Admin).bat`):**
+- Detects if already elevated; if not, re-launches itself via UAC prompt
+- Useful when package installation requires write access to protected directories
 
 > **Requirements:** Python 3.10+ must be installed and added to PATH. Download from [python.org](https://www.python.org/downloads/) — tick *"Add Python to PATH"* during setup.
+
+> **Desktop shortcut:** A pre-configured `AI CFO System.lnk` shortcut (with the UAC shield) can be placed on your Desktop — double-clicking it triggers the admin launcher directly.
 
 ---
 
@@ -515,6 +528,7 @@ Multi-agent orchestration framework. Provides typed state machines, node routing
 ```
 ai_cfo_system/
 ├── Launch AI CFO.bat             # Windows one-click launcher (double-click to run)
+├── Launch AI CFO (Admin).bat     # Same launcher with UAC elevation (runs as administrator)
 ├── streamlit_app.py              # Main Streamlit UI
 ├── requirements.txt              # Pinned dependencies
 ├── .env.example                  # Environment variable template
