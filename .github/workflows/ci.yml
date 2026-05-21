@@ -22,5 +22,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run tests
-        run: python -m pytest tests/ --tb=short -q
+      - name: Run unit tests
+        run: python -m pytest tests/ --ignore=tests/smoke_test.py --tb=short -q
+
+      - name: Run smoke tests
+        run: python -m pytest tests/smoke_test.py -v
