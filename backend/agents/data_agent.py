@@ -116,7 +116,7 @@ def _extract_with_instructor(raw_str: str, errors: list, warnings: list) -> Dict
     try:
         client = instructor.from_anthropic(anthropic.Anthropic())
         result = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
             max_tokens=2000,
             response_model=FinancialDataSchema,
             system=DATA_EXTRACTION_SYSTEM,
@@ -133,7 +133,7 @@ def _extract_with_raw_claude(raw_str: str, errors: list, warnings: list) -> Dict
     try:
         client = anthropic.Anthropic()
         msg = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
             max_tokens=2000,
             system=DATA_EXTRACTION_SYSTEM + "\nReturn ONLY the JSON object.",
             messages=[{"role": "user", "content": f"Extract financial data from:\n{raw_str}"}],

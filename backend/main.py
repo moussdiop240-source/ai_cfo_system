@@ -2,11 +2,20 @@
 AI CFO System — FastAPI entry point.
 Production-grade, multi-agent financial intelligence platform.
 """
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api.routes import approvals, debate, rag, stream, tasks
 from .database.session import create_tables
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_tables()
+    yield
+
 
 app = FastAPI(
     title="AI CFO System",
@@ -18,6 +27,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -34,11 +44,6 @@ app.include_router(approvals.router)
 app.include_router(debate.router)
 app.include_router(stream.router)
 app.include_router(rag.router)
-
-
-@app.on_event("startup")
-async def startup():
-    create_tables()
 
 
 @app.get("/health")

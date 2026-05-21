@@ -56,8 +56,11 @@ def route_from_supervisor(
     statuses = state.get("agent_statuses") or {}
     errors   = state.get("errors") or []
 
-    # Hard stop if too many errors
+    # Hard stop on too many errors or exceeded iteration budget
     if len(errors) > 5:
+        return "__end__"
+
+    if state.get("iteration_count", 0) >= state.get("max_iterations", 20):
         return "__end__"
 
     # 1. Data validation
@@ -84,13 +87,7 @@ def route_from_supervisor(
     if not state.get("analysis_narrative") or statuses.get("analysis_agent") not in ("complete",):
         return "analysis_agent"
 
-    # 7. HITL — compute triggers then check
-    # Compute triggers if not done yet
-    if state.get("approval_triggers") is None:
-        state_updated = compute_approval_triggers(state)
-        if state_updated.get("requires_human_approval") and state.get("human_decision") != "approved":
-            return "human_review"
-
+    # 7. HITL — triggers are pre-computed in supervisor_node before this is called
     if state.get("requires_human_approval") and state.get("human_decision") not in ("approved",):
         return "human_review"
 
@@ -103,7 +100,17 @@ def route_from_supervisor(
 
 
 def supervisor_node(state: CFOAgentState) -> CFOAgentState:
-    """Supervisor node — records routing decision."""
+    """Supervisor node — records routing decision and pre-computes HITL triggers."""
+    # Compute approval triggers once here (in the node that returns state),
+    # not inside route_from_supervisor (which is a pure routing fn whose state changes are discarded).
+    if (
+        state.get("approval_triggers") is None
+        and state.get("kpi_metrics") is not None
+        and state.get("gaap_results") is not None
+        and state.get("ifrs_results") is not None
+    ):
+        state = compute_approval_triggers(state)
+
     next_agent = route_from_supervisor(state)
 
     audit = list(state.get("audit_log", []))
@@ -190,10 +197,10 @@ def create_initial_state(
     period: str,
     raw_financial_data: dict,
     submitted_by: str = "system",
+    submitted_by_role: str = "analyst",
     report_format: str = "board",
 ) -> CFOAgentState:
     """Create a clean initial state for a new pipeline run."""
-    from datetime import datetime
     return CFOAgentState(
         task_id=task_id,
         task_type=task_type,
@@ -202,6 +209,7 @@ def create_initial_state(
         period=period,
         report_format=report_format,
         submitted_by=submitted_by,
+        submitted_by_role=submitted_by_role,
         submitted_at=datetime.utcnow().isoformat(),
         raw_financial_data=raw_financial_data,
         raw_documents=None,

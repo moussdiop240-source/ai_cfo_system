@@ -10,6 +10,7 @@ class CFOAgentState(TypedDict):
     period:            str       # "Q1 2025"
     report_format:     str       # "board" | "investor" | "internal" | "audit"
     submitted_by:      str
+    submitted_by_role: Optional[str]  # "analyst"|"manager"|"vp"|"cfo"
     submitted_at:      str       # ISO timestamp
 
     # Raw Input

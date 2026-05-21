@@ -24,7 +24,7 @@ class GAAPEngine:
             "asc350": self.goodwill(data),
             "asc450": self.contingencies(data),
             "asc606": self.revenue_recognition(data),
-            "asc740": self.income_taxes(data),
+            "asc740": self.income_taxes(data, kpis),
             "asc820": self.fair_value(data),
             "asc842": self.leases(data),
             "sab99":  self.materiality(data, variance),
@@ -298,7 +298,7 @@ class GAAPEngine:
             ],
         }
 
-    def income_taxes(self, data: Dict) -> Dict:
+    def income_taxes(self, data: Dict, kpis: Dict = None) -> Dict:
         """ASC 740: Income Taxes — DTA 'more likely than not' realizability."""
         standard = "ASC 740"
         issues = []
@@ -306,7 +306,9 @@ class GAAPEngine:
         dta = float(data.get("deferred_tax_asset", 0))
         valuation_allowance = float(data.get("valuation_allowance", 0))
         net_income = float(data.get("net_income", 0))
-        effective_tax_rate = float(data.get("effective_tax_rate", 21.0))
+        # Use pre-computed ETR from kpis (guaranteed to be in %) to avoid
+        # unit ambiguity when data stores it as decimal vs. percent.
+        effective_tax_rate = (kpis or {}).get("effective_tax_rate") or float(data.get("effective_tax_rate", 21.0))
 
         if dta > 0:
             va_pct = round(valuation_allowance / dta * 100, 1) if dta else 0

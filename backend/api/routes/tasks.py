@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ...agents.supervisor import build_cfo_graph, create_initial_state
 from ...database.models import Task
-from ...database.session import get_db_dep
+from ...database.session import SessionLocal, get_db_dep
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -38,14 +38,18 @@ class TaskResponse(BaseModel):
     message:  str
 
 
-async def _run_pipeline(task_id: str, initial_state: dict, db: Session):
-    """Run the LangGraph pipeline in background and persist results."""
+async def _run_pipeline(task_id: str, initial_state: dict):
+    """Run the LangGraph pipeline in background and persist results.
+
+    Opens its own session — the request-scoped session is already closed
+    by the time this background task executes.
+    """
+    db = SessionLocal()
     graph = get_graph()
     try:
         config = {"configurable": {"thread_id": task_id}}
         final_state = graph.invoke(initial_state, config=config)
 
-        # Persist to DB
         task = db.query(Task).filter(Task.id == task_id).first()
         if task:
             task.status              = "complete" if not final_state.get("errors") else "error"
@@ -68,6 +72,8 @@ async def _run_pipeline(task_id: str, initial_state: dict, db: Session):
             task.status = "error"
             task.errors = [str(exc)]
             db.commit()
+    finally:
+        db.close()
 
 
 @router.post("", response_model=TaskResponse, status_code=202)
@@ -104,8 +110,8 @@ async def create_task(
         report_format=request.report_format,
     )
 
-    # Run pipeline in background
-    background_tasks.add_task(_run_pipeline, task_id, initial_state, db)
+    # Run pipeline in background (opens its own session)
+    background_tasks.add_task(_run_pipeline, task_id, initial_state)
 
     return TaskResponse(
         task_id=task_id,

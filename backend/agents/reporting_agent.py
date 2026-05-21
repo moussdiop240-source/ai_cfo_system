@@ -105,7 +105,7 @@ def reporting_agent_node(state: CFOAgentState) -> CFOAgentState:
     try:
         client = anthropic.Anthropic()
         msg = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
             max_tokens=4000,
             system=REPORT_SYSTEM,
             messages=[{"role": "user", "content": prompt}],
