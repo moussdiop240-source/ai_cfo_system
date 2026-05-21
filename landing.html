@@ -271,6 +271,76 @@
     .tech-badge:hover { border-color: rgba(0,255,200,0.3); }
     .tech-dot { width: 8px; height: 8px; border-radius: 50%; }
 
+    /* ── WINDOWS BUTTON ── */
+    .btn-windows {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1.75rem; border-radius: 10px;
+      font-size: 0.95rem; font-weight: 600; text-decoration: none;
+      border: 1px solid rgba(52,211,153,0.35); color: var(--green);
+      background: rgba(52,211,153,0.06);
+      transition: border-color .2s, background .2s;
+    }
+    .btn-windows:hover { border-color: var(--green); background: rgba(52,211,153,0.12); }
+
+    /* ── QUICK START ── */
+    .quickstart { background: var(--surface); }
+    .qs-grid {
+      max-width: 900px; margin: 0 auto;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start;
+    }
+    .qs-steps-list { display: flex; flex-direction: column; gap: 0; }
+    .qs-step {
+      display: flex; gap: 1rem; align-items: flex-start;
+      padding: 1.1rem 1.25rem; border-radius: 12px;
+      border: 1px solid var(--border); background: var(--bg);
+    }
+    .qs-num {
+      width: 1.75rem; height: 1.75rem; border-radius: 6px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700;
+      background: rgba(0,255,200,0.1); border: 1px solid rgba(0,255,200,0.3); color: var(--teal);
+    }
+    .qs-step-title { font-weight: 700; font-size: 0.9rem; margin-bottom: 0.25rem; }
+    .qs-step-desc { font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
+    .qs-code {
+      display: inline-block; margin-top: 0.4rem;
+      font-family: 'Courier New', monospace; font-size: 0.72rem;
+      background: var(--surface); border: 1px solid var(--border);
+      padding: 0.3rem 0.6rem; border-radius: 6px; color: var(--teal);
+    }
+    .qs-connector {
+      display: flex; align-items: center; padding: 0.3rem 0;
+      margin-left: 1.95rem; color: var(--border); font-size: 0.85rem; line-height: 1;
+    }
+    .qs-hint {
+      margin-top: 0.75rem; padding: 0.7rem 1rem; border-radius: 8px;
+      background: rgba(0,255,200,0.05); border: 1px solid rgba(0,255,200,0.15);
+      font-size: 0.78rem; color: var(--muted); line-height: 1.5;
+    }
+    .qs-terminal {
+      border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+      background: #010409;
+    }
+    .qs-terminal-bar {
+      display: flex; align-items: center; gap: 0.4rem;
+      padding: 0.6rem 0.9rem; background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .qs-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .qs-terminal-title { flex: 1; text-align: center; font-size: 0.7rem; color: var(--muted); }
+    .qs-terminal-body {
+      padding: 1.25rem 1.4rem;
+      font-family: 'Courier New', monospace; font-size: 0.77rem;
+      line-height: 2; color: #94A3B8;
+    }
+    .qs-ok   { color: var(--green); }
+    .qs-teal { color: var(--teal); }
+    .qs-url  { color: var(--blue); }
+    .qs-dim  { color: var(--muted); }
+    .qs-blink { animation: blink 1s step-end infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    @media (max-width: 700px) { .qs-grid { grid-template-columns: 1fr; } }
+
     /* ── CTA ── */
     .cta-section {
       text-align: center;
@@ -320,6 +390,7 @@
     <a class="btn-primary" href="https://github.com/moussdiop240-source/ai_cfo_system" target="_blank">
       View on GitHub
     </a>
+    <a class="btn-windows" href="#quickstart">⊞ Windows Launcher</a>
     <a class="btn-secondary" href="#features">See How It Works</a>
   </div>
 
@@ -344,6 +415,72 @@
       <div class="stat-num">84</div>
       <div class="stat-label">Tests Passing</div>
     </div>
+  </div>
+</section>
+
+<!-- QUICK START -->
+<section class="quickstart" id="quickstart">
+  <p class="section-label">Quick Start</p>
+  <h2>Running in Under 2 Minutes</h2>
+  <p class="section-sub">One file handles Python check, virtual environment, all dependencies, and launch.</p>
+
+  <div class="qs-grid">
+
+    <!-- Steps -->
+    <div class="qs-steps-list">
+      <div class="qs-step">
+        <div class="qs-num">1</div>
+        <div>
+          <div class="qs-step-title">Clone the repository</div>
+          <code class="qs-code">git clone https://github.com/moussdiop240-source/ai_cfo_system.git</code>
+        </div>
+      </div>
+      <div class="qs-connector">│</div>
+      <div class="qs-step">
+        <div class="qs-num">2</div>
+        <div>
+          <div class="qs-step-title">Double-click the launcher</div>
+          <div class="qs-step-desc">Find <strong style="color:var(--text)">Launch AI CFO.bat</strong> in the project root and double-click it.</div>
+          <code class="qs-code">Launch AI CFO.bat</code>
+        </div>
+      </div>
+      <div class="qs-connector">│</div>
+      <div class="qs-step">
+        <div class="qs-num">3</div>
+        <div>
+          <div class="qs-step-title">Browser opens automatically</div>
+          <div class="qs-step-desc">App runs at <span style="color:var(--blue)">localhost:8501</span>. First run installs deps automatically (~2 min). Instant on return visits.</div>
+        </div>
+      </div>
+      <div class="qs-hint">
+        Requires <strong style="color:var(--text)">Python 3.10+</strong> on PATH &nbsp;·&nbsp; Windows only &nbsp;·&nbsp; No API key needed to start
+      </div>
+    </div>
+
+    <!-- Fake terminal -->
+    <div class="qs-terminal">
+      <div class="qs-terminal-bar">
+        <span class="qs-dot" style="background:#F87171"></span>
+        <span class="qs-dot" style="background:#FBBF24"></span>
+        <span class="qs-dot" style="background:#34D399"></span>
+        <span class="qs-terminal-title">Launch AI CFO.bat</span>
+      </div>
+      <div class="qs-terminal-body">
+        <div class="qs-dim">  ══════════════════════════════════════</div>
+        <div style="color:var(--text);font-weight:700">  AI CFO System  |  Financial Intelligence</div>
+        <div class="qs-dim" style="margin-bottom:0.75rem">  ══════════════════════════════════════</div>
+        <div><span class="qs-dim">[1/4]</span> Checking Python... &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="qs-ok">OK  Python 3.11.9</span></div>
+        <div><span class="qs-dim">[2/4]</span> Virtual environment... &nbsp;&nbsp;&nbsp;<span class="qs-ok">OK  .venv created</span></div>
+        <div><span class="qs-dim">[3/4]</span> Dependencies... &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="qs-ok">OK  all installed</span></div>
+        <div><span class="qs-dim">[4/4]</span> Launching app... &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="qs-teal">starting</span> <span class="qs-blink">▌</span></div>
+        <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+          <div class="qs-dim">  You can now view your Streamlit app</div>
+          <div class="qs-dim">  in your browser.</div>
+          <div style="margin-top:0.4rem">  Local URL: &nbsp;<span class="qs-url">http://localhost:8501</span></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </section>
 
