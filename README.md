@@ -1,5 +1,7 @@
 # AI CFO System — Multi-Agent Financial Intelligence Platform
 
+[![CI](https://github.com/moussdiop240-source/ai_cfo_system/actions/workflows/ci.yml/badge.svg)](https://github.com/moussdiop240-source/ai_cfo_system/actions/workflows/ci.yml)
+
 > **Zero-hallucination financial analysis for CFOs, Controllers, and FP&A teams.**  
 > Built on deterministic math engines, GAAP/IFRS compliance automation, and LangGraph multi-agent orchestration. Every number is exact. No LLM generates financial figures.
 
