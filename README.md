@@ -173,6 +173,30 @@ All findings cite specific ASC/IAS standards. Each finding card shows severity (
 
 ## 5. How to Use It
 
+### Option A — Windows One-Click Launcher (Recommended)
+
+Double-click **`Launch AI CFO.bat`** in the project root. It handles everything automatically:
+
+```
+[1/4] Checking Python installation...   OK  Python 3.11.x
+[2/4] Setting up virtual environment... OK  .venv created
+[3/4] Checking dependencies...          Installing packages...
+[4/4] Starting AI CFO System...         Browser opens at http://localhost:8501
+```
+
+**What it does:**
+- Verifies Python 3.10+ is installed (prints a download link if not)
+- Creates an isolated `.venv` virtual environment on first run
+- Installs all dependencies from `requirements.txt` (skipped on subsequent runs)
+- Launches the Streamlit app and opens your browser automatically
+- Pauses on any error so you can read the message
+
+> **Requirements:** Python 3.10+ must be installed and added to PATH. Download from [python.org](https://www.python.org/downloads/) — tick *"Add Python to PATH"* during setup.
+
+---
+
+### Option B — Manual Installation
+
 ### Prerequisites
 
 - Python 3.10+
@@ -490,6 +514,7 @@ Multi-agent orchestration framework. Provides typed state machines, node routing
 
 ```
 ai_cfo_system/
+├── Launch AI CFO.bat             # Windows one-click launcher (double-click to run)
 ├── streamlit_app.py              # Main Streamlit UI
 ├── requirements.txt              # Pinned dependencies
 ├── .env.example                  # Environment variable template
