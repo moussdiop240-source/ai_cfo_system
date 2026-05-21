@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI CFO System — Multi-Agent Financial Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #04060F;
+      --surface:  #0D1117;
+      --border:   #1E2736;
+      --teal:     #00FFC8;
+      --blue:     #60A5FA;
+      --purple:   #A78BFA;
+      --amber:    #FBBF24;
+      --red:      #F87171;
+      --green:    #34D399;
+      --text:     #E2E8F0;
+      --muted:    #64748B;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1rem 2.5rem;
+      background: rgba(4,6,15,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-size: 1.1rem; font-weight: 700; letter-spacing: -0.02em;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .nav-logo span { color: var(--teal); }
+    .nav-right { display: flex; gap: 1rem; align-items: center; }
+    .badge-ci {
+      font-size: 0.7rem; font-weight: 600; padding: 0.25rem 0.6rem;
+      border-radius: 999px; border: 1px solid #34D399;
+      color: #34D399; background: rgba(52,211,153,0.08);
+    }
+    .btn-ghost {
+      font-size: 0.85rem; font-weight: 500; color: var(--text);
+      text-decoration: none; padding: 0.4rem 0.9rem;
+      border: 1px solid var(--border); border-radius: 8px;
+      transition: border-color .2s, color .2s;
+    }
+    .btn-ghost:hover { border-color: var(--teal); color: var(--teal); }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      padding: 6rem 2rem 5rem;
+      text-align: center;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0,255,200,0.12), transparent),
+        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(96,165,250,0.08), transparent),
+        radial-gradient(ellipse 50% 40% at 20% 70%, rgba(167,139,250,0.07), transparent);
+      pointer-events: none;
+    }
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--teal);
+      background: rgba(0,255,200,0.08); border: 1px solid rgba(0,255,200,0.2);
+      padding: 0.35rem 0.9rem; border-radius: 999px; margin-bottom: 1.5rem;
+    }
+    .hero-eyebrow::before { content: '●'; font-size: 0.5rem; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 4rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      max-width: 820px;
+      margin: 0 auto 1.25rem;
+    }
+    h1 .accent { color: var(--teal); }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: #94A3B8;
+      max-width: 640px;
+      margin: 0 auto 2.5rem;
+      font-weight: 400;
+    }
+
+    .hero-ctas {
+      display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+      margin-bottom: 3.5rem;
+    }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1.75rem; border-radius: 10px;
+      font-size: 0.95rem; font-weight: 600; text-decoration: none;
+      background: var(--teal); color: #04060F;
+      box-shadow: 0 0 30px rgba(0,255,200,0.25);
+      transition: box-shadow .2s, transform .2s;
+    }
+    .btn-primary:hover { box-shadow: 0 0 45px rgba(0,255,200,0.4); transform: translateY(-1px); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.75rem 1.75rem; border-radius: 10px;
+      font-size: 0.95rem; font-weight: 600; text-decoration: none;
+      border: 1px solid var(--border); color: var(--text);
+      transition: border-color .2s, background .2s;
+    }
+    .btn-secondary:hover { border-color: var(--blue); background: rgba(96,165,250,0.06); }
+
+    /* ── STATS BAR ── */
+    .stats-bar {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 0;
+      max-width: 720px; margin: 0 auto;
+      border: 1px solid var(--border); border-radius: 14px;
+      overflow: hidden; background: var(--surface);
+    }
+    .stat-item {
+      flex: 1; min-width: 120px;
+      padding: 1.2rem 1rem; text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-num {
+      font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--teal), var(--blue));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .stat-label { font-size: 0.7rem; color: var(--muted); font-weight: 500; margin-top: 0.2rem; }
+
+    /* ── SECTION CHROME ── */
+    section { padding: 5rem 2rem; }
+    .section-label {
+      text-align: center; font-size: 0.72rem; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--teal); margin-bottom: 0.75rem;
+    }
+    h2 {
+      text-align: center; font-size: clamp(1.6rem, 3vw, 2.4rem);
+      font-weight: 800; letter-spacing: -0.02em;
+      margin-bottom: 0.75rem;
+    }
+    .section-sub {
+      text-align: center; color: var(--muted); font-size: 1rem;
+      max-width: 520px; margin: 0 auto 3rem;
+    }
+
+    /* ── ARCHITECTURE ── */
+    .arch { background: var(--surface); }
+    .arch-diagram {
+      max-width: 860px; margin: 0 auto;
+      display: flex; flex-direction: column; gap: 0.75rem;
+    }
+    .arch-layer {
+      display: flex; align-items: center; gap: 1rem;
+      padding: 1.1rem 1.5rem; border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      transition: border-color .2s;
+    }
+    .arch-layer:hover { border-color: rgba(0,255,200,0.3); }
+    .arch-num {
+      width: 2rem; height: 2rem; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.75rem; font-weight: 700; flex-shrink: 0;
+    }
+    .arch-content { flex: 1; }
+    .arch-title { font-weight: 700; font-size: 0.95rem; }
+    .arch-desc { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+    .arch-tags { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .arch-tag {
+      font-size: 0.65rem; font-weight: 600; padding: 0.2rem 0.5rem;
+      border-radius: 4px; border: 1px solid;
+    }
+    .arch-badge {
+      font-size: 0.7rem; font-weight: 700; padding: 0.3rem 0.7rem;
+      border-radius: 6px; flex-shrink: 0;
+    }
+    .l1 { background: rgba(0,255,200,0.1);  border-color: rgba(0,255,200,0.3);  color: var(--teal);   }
+    .l2 { background: rgba(96,165,250,0.1); border-color: rgba(96,165,250,0.3); color: var(--blue);   }
+    .l3 { background: rgba(167,139,250,0.1);border-color: rgba(167,139,250,0.3);color: var(--purple); }
+    .l4 { background: rgba(251,191,36,0.1); border-color: rgba(251,191,36,0.3); color: var(--amber);  }
+
+    .arch-connector {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.7rem; color: var(--muted); gap: 0.5rem;
+    }
+    .arch-connector::before, .arch-connector::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ── FEATURES GRID ── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem; max-width: 1100px; margin: 0 auto;
+    }
+    .feature-card {
+      padding: 1.5rem; border-radius: 14px;
+      border: 1px solid var(--border); background: var(--surface);
+      transition: border-color .2s, transform .2s;
+    }
+    .feature-card:hover { border-color: rgba(0,255,200,0.25); transform: translateY(-2px); }
+    .feature-icon {
+      width: 2.5rem; height: 2.5rem; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; margin-bottom: 1rem;
+    }
+    .feature-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+    .feature-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+    .feature-pills { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 1rem; }
+    .pill {
+      font-size: 0.62rem; font-weight: 600; padding: 0.2rem 0.5rem;
+      border-radius: 4px; border: 1px solid var(--border); color: var(--muted);
+    }
+
+    /* ── COMPLIANCE GRID ── */
+    .compliance { background: var(--surface); }
+    .compliance-cols {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 2rem; max-width: 900px; margin: 0 auto;
+    }
+    .compliance-block h3 {
+      font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase; margin-bottom: 1rem;
+    }
+    .standard-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .standard-row {
+      display: flex; align-items: center; gap: 0.75rem;
+      padding: 0.55rem 0.9rem; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--bg);
+      font-size: 0.82rem;
+    }
+    .standard-dot {
+      width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    }
+    .standard-name { font-weight: 600; flex: 1; }
+    .standard-desc { color: var(--muted); font-size: 0.75rem; }
+
+    /* ── TECH STACK ── */
+    .tech-grid {
+      display: flex; flex-wrap: wrap; justify-content: center;
+      gap: 0.75rem; max-width: 900px; margin: 0 auto;
+    }
+    .tech-badge {
+      display: flex; align-items: center; gap: 0.5rem;
+      padding: 0.5rem 1rem; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--surface);
+      font-size: 0.8rem; font-weight: 600;
+      transition: border-color .2s;
+    }
+    .tech-badge:hover { border-color: rgba(0,255,200,0.3); }
+    .tech-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+    /* ── CTA ── */
+    .cta-section {
+      text-align: center;
+      background: linear-gradient(135deg, rgba(0,255,200,0.06) 0%, rgba(96,165,250,0.06) 100%);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .cta-section h2 { margin-bottom: 0.75rem; }
+
+    /* ── FOOTER ── */
+    footer {
+      padding: 2rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--teal); text-decoration: none; }
+
+    @media (max-width: 640px) {
+      nav { padding: 1rem; }
+      .compliance-cols { grid-template-columns: 1fr; }
+      .stat-item { min-width: 90px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">⬡ <span>AI CFO</span> System</div>
+  <div class="nav-right">
+    <span class="badge-ci">✓ 84 tests passing</span>
+    <a class="btn-ghost" href="https://github.com/moussdiop240-source/ai_cfo_system" target="_blank">GitHub →</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-eyebrow">Production-Grade · Zero Hallucinations · Open Source</div>
+  <h1>AI-Powered CFO Intelligence.<br><span class="accent">Every number is exact.</span></h1>
+  <p class="hero-sub">
+    Multi-agent financial analysis that strictly separates deterministic math from LLM interpretation.
+    GAAP &amp; IFRS compliance automated. No AI ever generates a financial figure.
+  </p>
+  <div class="hero-ctas">
+    <a class="btn-primary" href="https://github.com/moussdiop240-source/ai_cfo_system" target="_blank">
+      View on GitHub
+    </a>
+    <a class="btn-secondary" href="#features">See How It Works</a>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-item">
+      <div class="stat-num">12</div>
+      <div class="stat-label">GAAP Standards</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">12</div>
+      <div class="stat-label">IFRS Standards</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">9</div>
+      <div class="stat-label">AI Agents</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">17</div>
+      <div class="stat-label">Exact KPIs</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">84</div>
+      <div class="stat-label">Tests Passing</div>
+    </div>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section class="arch" id="architecture">
+  <p class="section-label">Architecture</p>
+  <h2>4-Layer Design</h2>
+  <p class="section-sub">Each layer has a strict contract. Math never touches an LLM. LLMs never touch math.</p>
+
+  <div class="arch-diagram">
+
+    <div class="arch-layer">
+      <div class="arch-num l1">1</div>
+      <div class="arch-content">
+        <div class="arch-title">Deterministic Math Engine</div>
+        <div class="arch-desc">Exact KPIs, variance analysis, forecasting, anomaly detection — no LLM involved, ever.</div>
+        <div class="arch-tags">
+          <span class="arch-tag l1">Pandas</span>
+          <span class="arch-tag l1">NumPy</span>
+          <span class="arch-tag l1">Scikit-learn</span>
+          <span class="arch-tag l1">Statsmodels</span>
+          <span class="arch-tag l1">Holt-Winters</span>
+        </div>
+      </div>
+      <div class="arch-badge l1">ZERO LLM</div>
+    </div>
+
+    <div class="arch-connector">Validated outputs flow up</div>
+
+    <div class="arch-layer">
+      <div class="arch-num l2">2</div>
+      <div class="arch-content">
+        <div class="arch-title">Schema Enforcement &amp; Compliance</div>
+        <div class="arch-desc">Pydantic validates every input. 24 deterministic rule-based compliance checks (12 GAAP + 12 IFRS).</div>
+        <div class="arch-tags">
+          <span class="arch-tag l2">Pydantic v2</span>
+          <span class="arch-tag l2">Instructor</span>
+          <span class="arch-tag l2">GAAPEngine</span>
+          <span class="arch-tag l2">IFRSEngine</span>
+        </div>
+      </div>
+      <div class="arch-badge l2">RULE-BASED</div>
+    </div>
+
+    <div class="arch-connector">Structured data flows up</div>
+
+    <div class="arch-layer">
+      <div class="arch-num l3">3</div>
+      <div class="arch-content">
+        <div class="arch-title">Secure Infrastructure &amp; Orchestration</div>
+        <div class="arch-desc">LangGraph routes 9 agents. FastAPI serves results. Human-in-the-loop CFO approval gates. Full audit log.</div>
+        <div class="arch-tags">
+          <span class="arch-tag l3">LangGraph</span>
+          <span class="arch-tag l3">FastAPI</span>
+          <span class="arch-tag l3">SQLAlchemy</span>
+          <span class="arch-tag l3">HITL</span>
+          <span class="arch-tag l3">SHA-256 ledger</span>
+        </div>
+      </div>
+      <div class="arch-badge l3">ORCHESTRATED</div>
+    </div>
+
+    <div class="arch-connector">Context flows up</div>
+
+    <div class="arch-layer">
+      <div class="arch-num l4">4</div>
+      <div class="arch-content">
+        <div class="arch-title">RAG Knowledge Base</div>
+        <div class="arch-desc">20 pre-loaded compliance documents retrieved before every LLM call. pgvector cosine similarity with keyword fallback.</div>
+        <div class="arch-tags">
+          <span class="arch-tag l4">pgvector</span>
+          <span class="arch-tag l4">sentence-transformers</span>
+          <span class="arch-tag l4">Anthropic Claude</span>
+          <span class="arch-tag l4">Ollama</span>
+        </div>
+      </div>
+      <div class="arch-badge l4">GROUNDED</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="features">
+  <p class="section-label">Features</p>
+  <h2>Built for CFOs, FP&amp;A, and Controllers</h2>
+  <p class="section-sub">Every feature is production-ready, deterministic where it matters, and auditable end to end.</p>
+
+  <div class="features-grid">
+
+    <div class="feature-card">
+      <div class="feature-icon l1">⚡</div>
+      <div class="feature-title">Exact Financial Math</div>
+      <div class="feature-desc">17 KPIs computed to the cent. Variance analysis with SAB 99 5% materiality flags. Dual-model revenue forecast (LinearRegression + Holt-Winters). Cash runway per ASC 205-40.</div>
+      <div class="feature-pills">
+        <span class="pill">Gross Margin</span><span class="pill">EPS</span><span class="pill">DSO/DPO/CCC</span>
+        <span class="pill">D/E Ratio</span><span class="pill">EBITDA</span><span class="pill">ROE/ROA</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon l2">📋</div>
+      <div class="feature-title">GAAP Compliance Automation</div>
+      <div class="feature-desc">12 ASC standards checked on every run. Rule-based, no LLM, fully auditable. Flags NON_COMPLIANT, DISCLOSURE_REQUIRED, or COMPLIANT for each standard.</div>
+      <div class="feature-pills">
+        <span class="pill">ASC 606</span><span class="pill">ASC 842</span><span class="pill">ASC 326 CECL</span>
+        <span class="pill">ASC 205-40</span><span class="pill">ASC 740</span><span class="pill">SAB 99</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon l2">🌍</div>
+      <div class="feature-title">IFRS Compliance Automation</div>
+      <div class="feature-desc">12 IASB standards checked in parallel. Highlights key GAAP↔IFRS differences: IFRS 16 EBITDA uplift, IAS 38 dev cost capitalization, IAS 37 earlier provision recognition.</div>
+      <div class="feature-pills">
+        <span class="pill">IFRS 15</span><span class="pill">IFRS 16</span><span class="pill">IAS 36</span>
+        <span class="pill">IAS 37</span><span class="pill">IAS 38</span><span class="pill">IFRS 9 ECL</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon l3">🤖</div>
+      <div class="feature-title">Multi-Agent Orchestration</div>
+      <div class="feature-desc">9 LangGraph agents in a deterministic pipeline: data → math → RAG → GAAP → IFRS → analysis → HITL → report. Supervisor routes based on state, not LLM decisions.</div>
+      <div class="feature-pills">
+        <span class="pill">LangGraph</span><span class="pill">Supervisor Pattern</span>
+        <span class="pill">State Machine</span><span class="pill">Conditional Edges</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon l3">✋</div>
+      <div class="feature-title">Human-in-the-Loop Approvals</div>
+      <div class="feature-desc">Deterministic thresholds trigger mandatory CFO review: variance &gt;10%, gross margin &lt;30%, 3+ anomalies, or any compliance issue. Pipeline pauses until approved or rejected.</div>
+      <div class="feature-pills">
+        <span class="pill">HITL Gates</span><span class="pill">Approval API</span>
+        <span class="pill">Audit Trail</span><span class="pill">SHA-256 Ledger</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon l4">⚖️</div>
+      <div class="feature-title">IFRS vs GAAP Debate Agent</div>
+      <div class="feature-desc">3-round adversarial debate: IFRS Advocate → GAAP Advocate → Independent Arbiter. Produces a definitive framework recommendation with quantified reconciling items.</div>
+      <div class="feature-pills">
+        <span class="pill">IFRS Advocate</span><span class="pill">GAAP Advocate</span>
+        <span class="pill">Chief Arbiter</span><span class="pill">Quantified Deltas</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- COMPLIANCE STANDARDS -->
+<section class="compliance">
+  <p class="section-label">Standards Coverage</p>
+  <h2>24 Standards. Zero Guesswork.</h2>
+  <p class="section-sub">Every check is rule-based code, not an LLM prompt. Fully auditable and reproducible.</p>
+
+  <div class="compliance-cols">
+    <div class="compliance-block">
+      <h3 style="color: var(--blue)">US GAAP — 12 ASC Standards</h3>
+      <div class="standard-list">
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">ASC 205-40</span><span class="standard-desc">Going Concern</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">ASC 230</span><span class="standard-desc">Cash Flows</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">ASC 260</span><span class="standard-desc">Earnings Per Share</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">ASC 280</span><span class="standard-desc">Segment Reporting</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">ASC 310/326</span><span class="standard-desc">Receivables / CECL</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">ASC 350</span><span class="standard-desc">Goodwill Impairment</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">ASC 450</span><span class="standard-desc">Contingencies</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">ASC 606</span><span class="standard-desc">Revenue Recognition</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">ASC 740</span><span class="standard-desc">Income Taxes / DTA</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">ASC 820</span><span class="standard-desc">Fair Value / L1-L3</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">ASC 842</span><span class="standard-desc">Leases (Dual Model)</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#60A5FA"></div><span class="standard-name">SAB 99</span><span class="standard-desc">Materiality (5% Rule)</span></div>
+      </div>
+    </div>
+
+    <div class="compliance-block">
+      <h3 style="color: var(--teal)">IFRS — 12 IASB Standards</h3>
+      <div class="standard-list">
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IAS 1</span><span class="standard-desc">Presentation / OCI</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IAS 2</span><span class="standard-desc">Inventories (LIFO Banned)</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IAS 7</span><span class="standard-desc">Cash Flows (Policy Choice)</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IAS 12</span><span class="standard-desc">Income Taxes</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IAS 16</span><span class="standard-desc">PP&amp;E / Revaluation Model</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IAS 33</span><span class="standard-desc">Earnings Per Share</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IAS 36</span><span class="standard-desc">Impairment (Reversal OK)</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IAS 37</span><span class="standard-desc">Provisions (&gt;50% Probable)</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IAS 38</span><span class="standard-desc">Intangibles / Dev Costs</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IFRS 9</span><span class="standard-desc">ECL 3-Stage Model</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IFRS 15</span><span class="standard-desc">Revenue (5-Step)</span></div>
+        <div class="standard-row"><div class="standard-dot" style="background:#00FFC8"></div><span class="standard-name">IFRS 16</span><span class="standard-desc">Leases (Single Model)</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section>
+  <p class="section-label">Tech Stack</p>
+  <h2>Built on Proven Open-Source</h2>
+  <p class="section-sub">Pinned versions. No surprise upgrades. Every dependency chosen for production reliability.</p>
+
+  <div class="tech-grid">
+    <div class="tech-badge"><div class="tech-dot" style="background:#60A5FA"></div>LangGraph 0.2</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#00FFC8"></div>Anthropic Claude</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#A78BFA"></div>FastAPI 0.115</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#FBBF24"></div>Pydantic v2</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#34D399"></div>Pandas 2.2</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#60A5FA"></div>NumPy 1.26</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#F472B6"></div>Scikit-learn 1.5</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#FBBF24"></div>Statsmodels 0.14</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#A78BFA"></div>SQLAlchemy 2.0</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#00FFC8"></div>pgvector</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#60A5FA"></div>sentence-transformers</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#34D399"></div>Instructor 1.7</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#F87171"></div>Ollama (local LLM)</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#FBBF24"></div>Streamlit</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#A78BFA"></div>GitHub Actions CI</div>
+    <div class="tech-badge"><div class="tech-dot" style="background:#34D399"></div>pytest 8.2 · 84 tests</div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <p class="section-label">Open Source</p>
+  <h2>Ready to Deploy</h2>
+  <p class="section-sub">Clone it, run it locally with Ollama (no API key needed), or point it at Claude for production-grade reports.</p>
+  <div class="hero-ctas" style="margin-bottom:0">
+    <a class="btn-primary" href="https://github.com/moussdiop240-source/ai_cfo_system" target="_blank">
+      Star on GitHub ★
+    </a>
+    <a class="btn-secondary" href="https://github.com/moussdiop240-source/ai_cfo_system#readme" target="_blank">
+      Read the Docs
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  Built with Python · LangGraph · Anthropic Claude ·
+  <a href="https://github.com/moussdiop240-source/ai_cfo_system" target="_blank">github.com/moussdiop240-source/ai_cfo_system</a>
+</footer>
+
+</body>
+</html>
