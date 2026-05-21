@@ -340,6 +340,23 @@
     .qs-blink { animation: blink 1s step-end infinite; }
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
     @media (max-width: 700px) { .qs-grid { grid-template-columns: 1fr; } }
+    .qs-launchers { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.6rem; }
+    .qs-launcher-row {
+      display: flex; align-items: flex-start; gap: 0.75rem;
+      padding: 0.65rem 0.85rem; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--surface);
+      font-size: 0.78rem;
+    }
+    .qs-launcher-row.admin { border-color: rgba(251,191,36,0.3); background: rgba(251,191,36,0.04); }
+    .qs-launcher-icon { font-size: 1rem; flex-shrink: 0; line-height: 1.4; }
+    .qs-launcher-name { font-family: 'Courier New', monospace; font-size: 0.72rem; color: var(--teal); font-weight: 700; }
+    .qs-launcher-row.admin .qs-launcher-name { color: var(--amber); }
+    .qs-launcher-tag {
+      font-size: 0.6rem; font-weight: 700; padding: 0.1rem 0.4rem;
+      border-radius: 4px; vertical-align: middle; margin-left: 0.35rem;
+    }
+    .tag-standard { background: rgba(0,255,200,0.1); border: 1px solid rgba(0,255,200,0.3); color: var(--teal); }
+    .tag-admin    { background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: var(--amber); }
 
     /* ── CTA ── */
     .cta-section {
@@ -438,10 +455,25 @@
       <div class="qs-connector">│</div>
       <div class="qs-step">
         <div class="qs-num">2</div>
-        <div>
-          <div class="qs-step-title">Double-click the launcher</div>
-          <div class="qs-step-desc">Find <strong style="color:var(--text)">Launch AI CFO.bat</strong> in the project root and double-click it.</div>
-          <code class="qs-code">Launch AI CFO.bat</code>
+        <div style="width:100%">
+          <div class="qs-step-title">Choose your launcher &amp; double-click</div>
+          <div class="qs-step-desc" style="margin-bottom:0.5rem">Both files are in the project root.</div>
+          <div class="qs-launchers">
+            <div class="qs-launcher-row">
+              <span class="qs-launcher-icon">▶</span>
+              <div>
+                <div><span class="qs-launcher-name">Launch AI CFO.bat</span><span class="qs-launcher-tag tag-standard">STANDARD</span></div>
+                <div style="color:var(--muted);font-size:0.74rem;margin-top:0.2rem">Everyday use — no elevation needed</div>
+              </div>
+            </div>
+            <div class="qs-launcher-row admin">
+              <span class="qs-launcher-icon">🛡</span>
+              <div>
+                <div><span class="qs-launcher-name">Launch AI CFO (Admin).bat</span><span class="qs-launcher-tag tag-admin">ADMIN</span></div>
+                <div style="color:var(--muted);font-size:0.74rem;margin-top:0.2rem">Triggers UAC prompt → runs with administrator privileges</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="qs-connector">│</div>
