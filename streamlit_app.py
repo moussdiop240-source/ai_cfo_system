@@ -567,6 +567,8 @@ tabs = st.tabs([
     "🧠 AI Analysis",
     "💬 Debate",
     "🔍 RAG & Audit",
+    "💰 CapEx Analysis",
+    "👤 HITL Approval",
 ])
 
 
@@ -681,6 +683,55 @@ with tabs[1]:
     )
     st.bar_chart(chart_df.set_index("Line Item"))
 
+    # ── SAB 99 AI Explanation ────────────────────────────────────────────────
+    st.divider()
+    st.subheader("SAB 99 AI Interpretation")
+    st.caption("SEC Staff Accounting Bulletin No. 99 — Materiality threshold ≥ 5%")
+
+    if st.button("🧠 Ask AI to Explain SAB 99 Variances", key="sab99_ai_btn"):
+        with st.spinner("Generating SAB 99 materiality analysis …"):
+            try:
+                from backend.llm.adapter import get_adapter as _get_adapter
+                _adapter = _get_adapter()
+                _var_lines = []
+                for _key, _label in labels.items():
+                    _item = r["variance"]["line_items"].get(_key, {})
+                    if _item:
+                        _mat = "MATERIAL (≥5%)" if _item.get("material") else "not material"
+                        _fav = "Favorable" if _item.get("favorable") else "Unfavorable"
+                        _var_lines.append(
+                            f"- {_label}: Actual {fmt(_item['actual'])}, Budget {fmt(_item['budget'])}, "
+                            f"Variance {_item['variance_pct']:+.1f}% — {_mat} · {_fav}"
+                        )
+                _var_summary = "\n".join(_var_lines)
+                _sab99_prompt = f"""You are a Lead Audit CPA specializing in SEC materiality standards.
+
+Company: {r['company']} | Period: {r['period']}
+
+**SAB 99 (SEC Staff Accounting Bulletin No. 99)** establishes that a 5% quantitative variance is a useful starting point but NOT a safe harbor. Qualitative factors can make smaller variances material.
+
+Budget vs Actuals (current period):
+{_var_summary}
+
+Please provide:
+1. **What is SAB 99?** — plain-English explanation for the CFO (2-3 sentences)
+2. **Per-Category Analysis** — for each line item, explain:
+   - Whether the variance is material under SAB 99 and why
+   - Qualitative factors that may elevate or reduce materiality
+   - Required SEC/board disclosure language if material
+3. **Priority Actions** — ranked list of disclosures or footnotes required
+4. **Overall Materiality Assessment** — is the aggregate variance pattern a concern?
+
+Be specific with dollar amounts. Cite ASC standards and SAB 99 where relevant."""
+                _sab99_response = _adapter.complete(_sab99_prompt, max_tokens=1800)
+                st.session_state["sab99_ai_response"] = _sab99_response
+                st.success("SAB 99 analysis complete!")
+            except Exception as _e:
+                st.error(f"AI error: {_e}")
+
+    if st.session_state.get("sab99_ai_response"):
+        st.markdown(st.session_state["sab99_ai_response"])
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  TAB 3 · COMPLIANCE
@@ -757,12 +808,50 @@ with tabs[3]:
     q_hist = ["Q1'24","Q2'24","Q3'24","Q4'24","Q1'25","Q2'25","Q3'25","Q4'25","Q1'26"]
     q_fcast= ["Q2'26","Q3'26","Q4'26","Q1'27","Q2'27","Q3'27","Q4'27","Q1'28"]
 
-    chart_rows = (
-        [{"Quarter": q, "Revenue": v, "Type": "Historical"} for q, v in zip(q_hist, hist)] +
-        [{"Quarter": q, "Revenue": v, "Type": "Forecast"}   for q, v in zip(q_fcast, fcast)]
+    import altair as alt
+
+    _hist_df = pd.DataFrame({
+        "Quarter":        q_hist[:len(hist)],
+        "Revenue ($M)":   [v / 1_000_000 for v in hist],
+        "Type":           "Historical",
+    })
+    _fcast_vals = fcast[:len(q_fcast)] if fcast else []
+    _fcast_df = pd.DataFrame({
+        "Quarter":        q_fcast[:len(_fcast_vals)],
+        "Revenue ($M)":   [v / 1_000_000 for v in _fcast_vals],
+        "Type":           "Forecast",
+    }) if _fcast_vals else pd.DataFrame(columns=["Quarter", "Revenue ($M)", "Type"])
+
+    _color_scale = alt.Scale(domain=["Historical", "Forecast"], range=["#3B82F6", "#F59E0B"])
+    _bars = (
+        alt.Chart(_hist_df)
+        .mark_bar(opacity=0.85, cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+        .encode(
+            x=alt.X("Quarter:N", sort=None, axis=alt.Axis(labelAngle=-35, title=None)),
+            y=alt.Y("Revenue ($M):Q", title="Revenue ($M)"),
+            color=alt.Color("Type:N", scale=_color_scale, legend=alt.Legend(title=None)),
+            tooltip=[alt.Tooltip("Quarter:N"), alt.Tooltip("Revenue ($M):Q", format="$.2f")],
+        )
     )
-    fdf = pd.DataFrame(chart_rows)
-    st.line_chart(fdf.pivot(index="Quarter", columns="Type", values="Revenue"))
+    if not _fcast_df.empty:
+        _fcast_line = (
+            alt.Chart(_fcast_df)
+            .mark_line(strokeDash=[6, 3], strokeWidth=2.5,
+                       point=alt.OverlayMarkDef(filled=True, size=70))
+            .encode(
+                x=alt.X("Quarter:N", sort=None),
+                y=alt.Y("Revenue ($M):Q"),
+                color=alt.Color("Type:N", scale=_color_scale),
+                tooltip=[alt.Tooltip("Quarter:N"), alt.Tooltip("Revenue ($M):Q", format="$.2f")],
+            )
+        )
+        _rev_chart = (_bars + _fcast_line).properties(
+            height=360, title="Revenue: Historical (bars) vs Forecast (dashed line)"
+        )
+    else:
+        _rev_chart = _bars.properties(height=360, title="Historical Revenue")
+
+    st.altair_chart(_rev_chart, use_container_width=True)
 
     if r["forecast"].get("r2") is not None:
         st.caption(
@@ -789,6 +878,28 @@ with tabs[3]:
             "Reportable?":  "✓ Yes" if s["revenue"]/total_rev >= 0.10 else "No",
         })
     st.dataframe(pd.DataFrame(seg_rows), use_container_width=True, hide_index=True)
+
+    # Segment revenue bar chart
+    _seg_chart_df = pd.DataFrame({
+        "Segment": [s["name"] for s in segs],
+        "Revenue ($M)": [s["revenue"] / 1_000_000 for s in segs],
+        "Gross Margin %": [
+            round(s["gross_profit"] / s["revenue"] * 100, 1) if s["revenue"] else 0
+            for s in segs
+        ],
+    })
+    _seg_bars = (
+        alt.Chart(_seg_chart_df)
+        .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+        .encode(
+            x=alt.X("Segment:N", sort="-y", axis=alt.Axis(labelAngle=0)),
+            y=alt.Y("Revenue ($M):Q", title="Revenue ($M)"),
+            color=alt.Color("Segment:N", legend=None),
+            tooltip=["Segment", "Revenue ($M)", "Gross Margin %"],
+        )
+        .properties(height=260, title="Segment Revenue Distribution")
+    )
+    st.altair_chart(_seg_bars, use_container_width=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1008,11 +1119,13 @@ with tabs[7]:
                                not st.session_state["analysis"].get("errors") else "PENDING", ""),
             "debate_agent":   ("COMPLETE" if st.session_state.get("debate") and
                                not st.session_state["debate"].get("errors") else "PENDING", ""),
-            "reporting_agent":("PENDING", ""),
+            "reporting_agent":("INACTIVE", ""),
         }
         for agent, (status, _) in pipeline_status.items():
             if status == "COMPLETE":
                 st.success(f"✓ {agent}")
+            elif status == "INACTIVE":
+                st.warning(f"⊘ {agent} — requires full backend pipeline (POST /tasks)")
             else:
                 st.info(f"○ {agent}")
 
@@ -1030,3 +1143,298 @@ with tabs[7]:
         score = sum(1 for f in req if data.get(f)) / len(req)
         st.metric("Completeness", f"{score:.0%}")
         st.progress(score)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TAB 9 · CAPEX ANALYSIS
+# ══════════════════════════════════════════════════════════════════════════════
+with tabs[8]:
+    import altair as alt
+
+    st.subheader("Capital Expenditure Dashboard")
+
+    _capex   = data.get("capex", 0)
+    _ocf     = data.get("cash_from_operations", 0)
+    _fcf     = data.get("free_cash_flow", 0)
+    _rev     = data.get("revenue", 1)
+    _assets  = data.get("total_assets", 1)
+    _ebitda  = data.get("ebitda", 0)
+    _depr    = data.get("depreciation", 0)
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Capital Expenditures",  fmt(_capex))
+    c2.metric("Free Cash Flow",        fmt(_fcf),   f"OCF − CapEx")
+    c3.metric("CapEx / Revenue",       f"{_capex / _rev * 100:.1f}%")
+    c4.metric("FCF Margin",            f"{_fcf / _rev * 100:.1f}%")
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Operating Cash Flow",   fmt(_ocf))
+    c2.metric("CapEx / OCF",           f"{_capex / _ocf * 100:.1f}%" if _ocf else "N/A")
+    c3.metric("FCF / Assets",          f"{_fcf / _assets * 100:.1f}%")
+    c4.metric("Maintenance CapEx Est.", fmt(_depr),  "≈ D&A proxy")
+
+    st.divider()
+    st.subheader("Cash Flow Waterfall: OCF → CapEx → FCF")
+
+    _waterfall_df = pd.DataFrame({
+        "Category":    ["Operating Cash Flow", "Capital Expenditures", "Free Cash Flow"],
+        "Amount ($M)": [_ocf / 1e6, _capex / 1e6, _fcf / 1e6],
+        "Color":       ["positive", "negative", "positive" if _fcf >= 0 else "negative"],
+    })
+    _capex_bar = (
+        alt.Chart(_waterfall_df)
+        .mark_bar(cornerRadiusTopLeft=5, cornerRadiusTopRight=5)
+        .encode(
+            x=alt.X("Category:N", sort=None, axis=alt.Axis(labelAngle=0, title=None)),
+            y=alt.Y("Amount ($M):Q", title="Amount ($M)"),
+            color=alt.Color(
+                "Color:N",
+                scale=alt.Scale(domain=["positive", "negative"], range=["#10B981", "#F87171"]),
+                legend=None,
+            ),
+            tooltip=[alt.Tooltip("Category:N"), alt.Tooltip("Amount ($M):Q", format="$.2f")],
+        )
+        .properties(height=300)
+    )
+    st.altair_chart(_capex_bar, use_container_width=True)
+
+    st.divider()
+    st.subheader("CapEx Classification (ASC 360 / IAS 16 / ASC 350-40)")
+
+    _capex_class = pd.DataFrame([
+        {"Category": "Property, Plant & Equipment",  "Est. %": "45%",
+         "Est. Amount": fmt(_capex * 0.45), "Standard": "ASC 360 / IAS 16",
+         "Treatment": "Capitalize & depreciate over useful life"},
+        {"Category": "Technology & Internal-Use SW",  "Est. %": "35%",
+         "Est. Amount": fmt(_capex * 0.35), "Standard": "ASC 350-40 / IAS 38",
+         "Treatment": "Capitalize dev phase; expense prelim & post-impl"},
+        {"Category": "Leasehold Improvements",        "Est. %": "20%",
+         "Est. Amount": fmt(_capex * 0.20), "Standard": "ASC 842 / IFRS 16",
+         "Treatment": "Capitalize; amortize over shorter of lease or useful life"},
+    ])
+    st.dataframe(_capex_class, use_container_width=True, hide_index=True)
+
+    # Growth vs Maintenance CapEx breakdown
+    st.divider()
+    _growth_capex = max(0, _capex - _depr)
+    _maint_capex  = min(_capex, _depr)
+    c1, c2 = st.columns(2)
+    c1.metric("Maintenance CapEx (est.)", fmt(_maint_capex),
+              "≈ D&A — keeps existing assets running")
+    c2.metric("Growth CapEx (est.)",      fmt(_growth_capex),
+              "CapEx above D&A — expands productive capacity")
+
+    st.divider()
+    st.subheader("AI CapEx & FCF Analysis")
+    st.caption("AI interprets CapEx efficiency, FCF sustainability, and accounting treatment under ASC 360 / IAS 16.")
+
+    if st.button("🧠 Run AI CapEx Analysis", key="capex_ai_btn"):
+        with st.spinner("Generating CapEx analysis …"):
+            try:
+                from backend.llm.adapter import get_adapter as _get_adapter
+                _adapter = _get_adapter()
+                _gr = r["forecast"].get("growth_rate")
+                _capex_prompt = f"""You are a Lead Audit CPA and CFO advisor.
+
+Company: {r['company']} | Period: {r['period']}
+
+Capital Expenditure Data:
+- CapEx: {fmt(_capex)} ({_capex / _rev * 100:.1f}% of revenue)
+- Operating Cash Flow: {fmt(_ocf)}
+- Free Cash Flow: {fmt(_fcf)} (FCF margin {_fcf / _rev * 100:.1f}%)
+- CapEx / OCF ratio: {_capex / _ocf * 100:.1f}% (healthy range: 20–40%)
+- Maintenance CapEx estimate (≈ D&A): {fmt(_maint_capex)}
+- Growth CapEx estimate: {fmt(_growth_capex)}
+- Total Assets: {fmt(_assets)}
+- EBITDA: {fmt(_ebitda)} (D&A: {fmt(_depr)})
+- Revenue growth rate: {f"{_gr:.1%}" if _gr is not None else "see forecast tab"}
+
+Please provide a structured CFO-level analysis:
+
+**1. CapEx Efficiency Assessment**
+- Is the CapEx/Revenue ratio appropriate for this business model?
+- Is the CapEx/OCF ratio sustainable?
+- Compare to SaaS/tech sector benchmarks
+
+**2. Free Cash Flow Quality**
+- FCF sustainability and quality assessment
+- Working capital considerations
+- FCF conversion rate (FCF / Net Income: {fmt(_fcf)} / {fmt(data.get('net_income', 1))})
+
+**3. GAAP Accounting Treatment (ASC 360, ASC 350-40, ASC 842)**
+- Capitalization vs expensing threshold considerations
+- Impairment test obligations (ASC 360-10-35)
+- Internal-use software capitalization (ASC 350-40) opportunity
+
+**4. IFRS Accounting Treatment (IAS 16, IAS 38, IFRS 16)**
+- Component accounting requirement (IAS 16.43)
+- Development cost capitalization under IAS 38 (applies to {fmt(data.get('rd_expense', 0))} R&D)
+- Difference vs GAAP treatment and P&L impact
+
+**5. Strategic Recommendations**
+- CapEx optimization actions for next quarter
+- Depreciation schedule and EBITDA impact going forward
+- Capital allocation priority ranking
+
+Cite all relevant accounting standards with ASC/IFRS numbers."""
+
+                _capex_response = _adapter.complete(_capex_prompt, max_tokens=2000)
+                st.session_state["capex_ai_response"] = _capex_response
+                st.success("CapEx analysis complete!")
+            except Exception as _e:
+                st.error(f"AI error: {_e}")
+
+    if st.session_state.get("capex_ai_response"):
+        st.markdown(st.session_state["capex_ai_response"])
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TAB 10 · HITL APPROVAL
+# ══════════════════════════════════════════════════════════════════════════════
+with tabs[9]:
+    from datetime import datetime as _dt
+
+    st.subheader("Human-in-the-Loop (HITL) Approval Gate")
+    st.caption(
+        "Deterministic triggers are checked against thresholds (variance ≥10%, gross margin <30%, "
+        "GAAP/IFRS violations). If any trigger fires, CFO sign-off is required before report distribution."
+    )
+
+    # Compute triggers from current pipeline results
+    from backend.agents.math_engine import FinancialCalculationEngine as _FCE
+    _hitl_engine = _FCE()
+    _hitl_triggers = _hitl_engine.check_approval_triggers(
+        r["variance"], r["kpis"], r["anomalies"], r["gaap"], r["ifrs"]
+    )
+    _needs_approval = len(_hitl_triggers) > 0
+
+    st.divider()
+
+    if _needs_approval:
+        st.error(
+            f"⚠ **{len(_hitl_triggers)} Approval Trigger(s) Detected** — "
+            "CFO review is required before report distribution."
+        )
+
+        with st.expander("Approval Triggers Detail", expanded=True):
+            for _t in _hitl_triggers:
+                _sev    = _t.get("severity", "high")
+                _reason = _t.get("reason", "trigger")
+                _msg    = _t.get("message", "")
+                _std    = _t.get("standard", "")
+                _disc   = " · Disclosure required" if _t.get("requires_disclosure") else ""
+                _detail = f"**{_reason.replace('_', ' ').upper()}** — {_msg}{_disc}"
+                if _std:
+                    _detail += f" ({_std})"
+                if _sev == "critical":
+                    st.error(f"🔴 CRITICAL  |  {_detail}")
+                else:
+                    st.warning(f"🟡 HIGH      |  {_detail}")
+
+        st.divider()
+        st.subheader("CFO Review Decision")
+
+        _decision = st.session_state.get("hitl_decision", "pending")
+
+        if _decision == "pending":
+            st.info(
+                "**Review checklist before approving:**\n"
+                "1. All variance explanations are accurate and complete\n"
+                "2. GAAP/IFRS disclosure requirements addressed in notes\n"
+                "3. Management action plan reviewed and approved\n"
+                "4. Report authorized for board/external distribution"
+            )
+
+            with st.form("hitl_approval_form"):
+                _approver = st.text_input(
+                    "Approver Name & Role",
+                    placeholder="e.g. Jane Smith, CFO"
+                )
+                _notes = st.text_area(
+                    "Review Notes (required — must address each trigger above)",
+                    height=160,
+                    placeholder=(
+                        "1. Revenue variance of +11.7%: driven by enterprise upsell campaign — see deal desk memo\n"
+                        "2. ASC 280 disclosure: added Note 14 with segment breakdown\n"
+                        "3. Action owner: VP Finance (deadline: 2026-06-01)"
+                    ),
+                )
+                _col1, _col2 = st.columns(2)
+                with _col1:
+                    _approve_btn = st.form_submit_button(
+                        "✅ Approve — Authorize Distribution", type="primary"
+                    )
+                with _col2:
+                    _reject_btn = st.form_submit_button("❌ Reject — Return for Revision")
+
+                if _approve_btn:
+                    if _approver and _notes:
+                        st.session_state["hitl_decision"]  = "approved"
+                        st.session_state["hitl_approver"]  = _approver
+                        st.session_state["hitl_notes"]     = _notes
+                        st.session_state["hitl_timestamp"] = _dt.utcnow().isoformat() + "Z"
+                        st.rerun()
+                    else:
+                        st.warning("Please fill in both Approver Name and Review Notes.")
+
+                if _reject_btn:
+                    if _approver and _notes:
+                        st.session_state["hitl_decision"]  = "rejected"
+                        st.session_state["hitl_approver"]  = _approver
+                        st.session_state["hitl_notes"]     = _notes
+                        st.session_state["hitl_timestamp"] = _dt.utcnow().isoformat() + "Z"
+                        st.rerun()
+                    else:
+                        st.warning("Please fill in both Approver Name and Review Notes.")
+
+        elif _decision == "approved":
+            st.success(
+                f"✅ **APPROVED** by **{st.session_state.get('hitl_approver', '')}** "
+                f"at {st.session_state.get('hitl_timestamp', '')} UTC"
+            )
+            st.markdown(f"**Review Notes:** {st.session_state.get('hitl_notes', '')}")
+            if st.button("🔄 Reset Decision", key="hitl_reset_btn"):
+                for _k in ["hitl_decision", "hitl_approver", "hitl_notes", "hitl_timestamp"]:
+                    st.session_state.pop(_k, None)
+                st.rerun()
+
+        elif _decision == "rejected":
+            st.error(
+                f"❌ **REJECTED** by **{st.session_state.get('hitl_approver', '')}** "
+                f"at {st.session_state.get('hitl_timestamp', '')} UTC — Report returned for revision."
+            )
+            st.markdown(f"**Review Notes:** {st.session_state.get('hitl_notes', '')}")
+            if st.button("🔄 Reset Decision", key="hitl_reset_btn"):
+                for _k in ["hitl_decision", "hitl_approver", "hitl_notes", "hitl_timestamp"]:
+                    st.session_state.pop(_k, None)
+                st.rerun()
+
+    else:
+        st.success(
+            "✅ **No approval triggers detected** — Report may be distributed without CFO sign-off."
+        )
+        st.info(
+            "Approval triggers fire automatically when:\n"
+            "- Total variance vs budget **≥ 10%** (SAB 99 elevated materiality)\n"
+            "- Gross margin falls **below 30%**\n"
+            "- **3 or more** statistical anomalies detected\n"
+            "- Any GAAP standard flagged **NON_COMPLIANT** or **DISCLOSURE_REQUIRED**\n"
+            "- Any IFRS standard flagged **NON_COMPLIANT** or **DISCLOSURE_REQUIRED**"
+        )
+
+    # Audit log
+    st.divider()
+    with st.expander("HITL Audit Log (this session)"):
+        _log_rows = []
+        if st.session_state.get("hitl_decision"):
+            _log_rows.append({
+                "Timestamp":   st.session_state.get("hitl_timestamp", "—"),
+                "Decision":    st.session_state.get("hitl_decision", "—").upper(),
+                "Approver":    st.session_state.get("hitl_approver", "—"),
+                "Triggers #":  len(_hitl_triggers),
+                "Notes":       (st.session_state.get("hitl_notes", "—") or "")[:80],
+            })
+        if _log_rows:
+            st.dataframe(pd.DataFrame(_log_rows), use_container_width=True, hide_index=True)
+        else:
+            st.caption("No approval actions recorded this session.")
