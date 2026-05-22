@@ -8,6 +8,7 @@ from typing import Dict
 from ..llm.adapter import get_adapter, trim_for_local
 from ..rag.pipeline import RAGChunk, format_rag_context
 from ..schemas.analysis import AnalysisOutput
+from ..validation.llm_validator import AnalysisOutputValidator, LLMOutputSanitizer
 from .state import CFOAgentState
 
 ANALYSIS_SYSTEM = """You are a senior CFO analyst with 20 years of Big-4 and Fortune 500
@@ -163,13 +164,21 @@ def _parse_raw_analysis(text: str) -> Dict:
     }
 
 
+_SANITIZER = LLMOutputSanitizer()
+
+
 def analysis_agent_node(
     state: CFOAgentState,
     backend: str | None = None,
     model: str | None = None,
+    strict_validation: bool = False,
 ) -> CFOAgentState:
     """LangGraph node — LLM interprets math + RAG. NEVER calculates.
     Works with Anthropic (ANTHROPIC_API_KEY) or Ollama (no key needed).
+
+    Blocking validation runs after generation:
+    - Critical errors (injection echo, arithmetic recalculation) hard-stop the pipeline.
+    - Warnings are recorded in state but do not block.
     """
     errors  = list(state.get("errors", []))
     audit   = list(state.get("audit_log", []))
@@ -235,6 +244,49 @@ def analysis_agent_node(
             "agent_statuses": {**state.get("agent_statuses", {}), "analysis_agent": "error"},
         }
 
+    # ── Sanitize output ───────────────────────────────────────────────────────
+    result = _SANITIZER.sanitize(result)
+
+    # ── Blocking validation ───────────────────────────────────────────────────
+    math_ctx = {
+        **(state.get("kpi_metrics") or {}),
+        "revenue": (state.get("validated_data") or {}).get("revenue"),
+        "gaap_results": state.get("gaap_results") or {},
+    }
+    rag_chunks_raw = state.get("rag_chunks") or []
+    validator = AnalysisOutputValidator(
+        math_results=math_ctx,
+        rag_chunks=rag_chunks_raw,
+        strict=strict_validation,
+    )
+    val_result = validator.validate(result)
+
+    val_errors   = list(state.get("validation_errors") or []) + val_result.errors
+    val_warnings = list(state.get("validation_warnings") or []) + val_result.warnings
+
+    # Critical validation failures block the pipeline
+    if val_result.errors:
+        errors.append(
+            f"analysis_agent: validation blocked — {len(val_result.errors)} critical error(s): "
+            + "; ".join(val_result.errors[:3])
+        )
+        audit.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "agent": "analysis_agent",
+            "action": "validation_blocked",
+            "errors": val_result.errors,
+            "warnings": val_result.warnings,
+        })
+        return {
+            **state,
+            "errors": errors,
+            "validation_errors": val_errors,
+            "validation_warnings": val_warnings,
+            "validation_score": val_result.score,
+            "audit_log": audit,
+            "agent_statuses": {**state.get("agent_statuses", {}), "analysis_agent": "validation_failed"},
+        }
+
     audit.append({
         "timestamp": datetime.utcnow().isoformat(),
         "agent": "analysis_agent",
@@ -242,6 +294,8 @@ def analysis_agent_node(
         "backend": adapter.active_backend,
         "model": adapter.active_model,
         "confidence": result.get("confidence_score"),
+        "validation_score": val_result.score,
+        "validation_warnings": len(val_result.warnings),
     })
 
     return {
@@ -252,6 +306,9 @@ def analysis_agent_node(
         "action_items": result.get("action_items", []),
         "ai_confidence_score": result.get("confidence_score", 0.0),
         "structured_output": result,
+        "validation_errors": val_errors,
+        "validation_warnings": val_warnings,
+        "validation_score": val_result.score,
         "agent_statuses": {**state.get("agent_statuses", {}), "analysis_agent": "complete"},
         "audit_log": audit,
         "errors": errors,
