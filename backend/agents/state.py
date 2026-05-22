@@ -53,6 +53,11 @@ class CFOAgentState(TypedDict):
     action_items:        Optional[List[str]]
     ai_confidence_score: Optional[float]
 
+    # LLM Output Validation
+    validation_errors:   Optional[List[str]]   # critical — block pipeline
+    validation_warnings: Optional[List[str]]   # advisory — log only
+    validation_score:    Optional[float]       # 0.0–1.0 quality score
+
     # Debate Agent
     debate_ifrs_advocate:  Optional[str]
     debate_gaap_advocate:  Optional[str]

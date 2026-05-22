@@ -13,9 +13,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-# Pattern that matches raw arithmetic expressions (potential recalculation)
+# Pattern that matches raw arithmetic expressions (potential recalculation).
+# Requires at least one space around the operator to avoid matching ISO dates
+# (e.g. 2026-04-30) and percentage changes (e.g. -15%).
 _ARITHMETIC_RE = re.compile(
-    r"\b\d[\d,]*\.?\d*\s*[+\-*/÷×]\s*\d[\d,]*\.?\d*\b"
+    r"\b\d[\d,]*\.?\d*\s+[+\-*/÷×]\s+\d[\d,]*\.?\d*\b"
 )
 
 # Pattern for prompt injection echo markers

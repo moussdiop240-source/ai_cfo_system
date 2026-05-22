@@ -1,12 +1,14 @@
 """
 RAG Pipeline — pgvector retrieval before every LLM call.
-Falls back to keyword search if pgvector is unavailable.
+Falls back to SQLite vector store, then keyword search if pgvector is unavailable.
 """
 import hashlib
 import json
+import os
 from typing import Any, Dict, List, Optional
 
-from .knowledge_base import keyword_search
+from .knowledge_base import keyword_search, KNOWLEDGE_BASE
+from .vectorstore import SQLiteVectorStore, get_vector_store
 
 
 class RAGChunk:
@@ -28,13 +30,23 @@ class RAGChunk:
 
 
 class RAGPipeline:
-    def __init__(self, db_url: Optional[str] = None, collection_name: str = "cfo_documents"):
+    def __init__(
+        self,
+        db_url: Optional[str] = None,
+        collection_name: str = "cfo_documents",
+        sqlite_path: Optional[str] = None,
+    ):
         self.db_url = db_url
         self.collection_name = collection_name
         self._pgvector_available = False
         self._client = None
 
-        if db_url:
+        # SQLite vector store: used when pgvector unavailable (local dev / CI)
+        _sqlite_path = sqlite_path or os.environ.get("VECTORSTORE_PATH", ":memory:")
+        self._sqlite_store: SQLiteVectorStore = get_vector_store(_sqlite_path)
+        self._sqlite_indexed = False
+
+        if db_url and not db_url.startswith("sqlite"):
             self._try_init_pgvector(db_url)
 
     def _try_init_pgvector(self, db_url: str):
@@ -47,6 +59,24 @@ class RAGPipeline:
         except Exception:
             self._pgvector_available = False
 
+    def _ensure_sqlite_indexed(self):
+        """Lazily index the in-memory knowledge base into the SQLite store on first use."""
+        if self._sqlite_indexed or self._sqlite_store.count() > 0:
+            self._sqlite_indexed = True
+            return
+        for doc in KNOWLEDGE_BASE:
+            embedding = self._embed(doc["content"])
+            self._sqlite_store.upsert(
+                doc_id=doc["id"],
+                title=doc["title"],
+                content=doc["content"],
+                embedding=embedding,
+                category=doc.get("category", "general"),
+                min_role=doc.get("min_role", "analyst"),
+                metadata={"title": doc["title"], "category": doc.get("category", "general")},
+            )
+        self._sqlite_indexed = True
+
     def retrieve(
         self,
         query: str,
@@ -54,12 +84,13 @@ class RAGPipeline:
         user_role: str = "analyst",
     ) -> List[RAGChunk]:
         """
-        Retrieve top-k relevant chunks from pgvector (or fallback KB).
+        Retrieve top-k relevant chunks.
+        Priority: pgvector → SQLite vector store → keyword fallback.
         Called BEFORE every LLM call to prevent hallucinations.
         """
         if self._pgvector_available:
             return self._pgvector_search(query, top_k, user_role)
-        return self._fallback_search(query, top_k, user_role)
+        return self._sqlite_vector_search(query, top_k, user_role)
 
     def _pgvector_search(self, query: str, top_k: int, user_role: str) -> List[RAGChunk]:
         """
@@ -96,6 +127,19 @@ class RAGPipeline:
         except Exception:
             return self._fallback_search(query, top_k, user_role)
 
+    def _sqlite_vector_search(self, query: str, top_k: int, user_role: str) -> List[RAGChunk]:
+        """Cosine similarity search using the SQLite vector store."""
+        try:
+            self._ensure_sqlite_indexed()
+            embedding = self._embed(query)
+            rows = self._sqlite_store.search(embedding, top_k=top_k)
+            return [
+                RAGChunk(id=r[0], title=r[1], content=r[2], category=r[3], score=r[4])
+                for r in rows
+            ]
+        except Exception:
+            return self._fallback_search(query, top_k, user_role)
+
     def _fallback_search(self, query: str, top_k: int, user_role: str) -> List[RAGChunk]:
         """Keyword-based fallback from in-memory knowledge base."""
         results = keyword_search(query, top_k=top_k, user_role=user_role)
@@ -111,18 +155,28 @@ class RAGPipeline:
         ]
 
     def _embed(self, text: str) -> List[float]:
-        """Generate embedding — uses sentence-transformers or falls back to zeros."""
-        try:
-            from sentence_transformers import SentenceTransformer
-            if not hasattr(self, "_model"):
-                self._model = SentenceTransformer("all-MiniLM-L6-v2")
-            return self._model.encode(text).tolist()
-        except ImportError:
-            # Return deterministic pseudo-embedding for testing
-            digest = int(hashlib.md5(text.encode()).hexdigest(), 16)
-            import random
-            rng = random.Random(digest)
-            return [rng.uniform(-1, 1) for _ in range(384)]
+        """
+        Generate a 384-dim embedding.
+
+        Uses sentence-transformers (all-MiniLM-L6-v2) in production.
+        Falls back to a deterministic MD5-seeded pseudo-embedding in:
+          - CI / Ollama mode (LLM_BACKEND=ollama)
+          - environments where sentence-transformers is not installed
+          - any import failure (torch DLL issues on Windows, etc.)
+        """
+        if os.environ.get("LLM_BACKEND", "").lower() != "ollama":
+            try:
+                from sentence_transformers import SentenceTransformer
+                if not hasattr(self, "_model"):
+                    self._model = SentenceTransformer("all-MiniLM-L6-v2")
+                return self._model.encode(text).tolist()
+            except Exception:
+                pass  # ImportError, DLL crash on import, or missing model
+        # Deterministic pseudo-embedding — same text always gets same vector
+        digest = int(hashlib.md5(text.encode()).hexdigest(), 16)
+        import random
+        rng = random.Random(digest)
+        return [rng.uniform(-1, 1) for _ in range(384)]
 
     def index_document(self, content: str, metadata: dict) -> str:
         """Chunk → embed → upsert to pgvector."""
