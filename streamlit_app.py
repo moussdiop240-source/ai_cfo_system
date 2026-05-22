@@ -423,13 +423,35 @@ with st.sidebar:
     st.divider()
 
     # ── Run deterministic pipeline ────────────────────────────────────────────
+    _auto_save_memory = st.checkbox(
+        "Auto-save to Institutional Memory", value=True,
+        help="Persist KPIs, anomalies, and GAAP/IFRS results for long-term trend tracking"
+    )
     if st.button("▶  Run Deterministic Pipeline", type="primary"):
         with st.spinner("Running Math → GAAP → IFRS → RAG …"):
             try:
                 st.session_state["results"] = run_deterministic(active_data, company, period)
                 st.session_state["analysis"] = None
                 st.session_state["debate"]   = None
-                st.success("Pipeline complete!")
+                # Auto-persist to institutional memory
+                if _auto_save_memory:
+                    try:
+                        from backend.memory.engine import get_memory_engine
+                        _mem = get_memory_engine()
+                        _sector = active_data.get("_meta", {}).get("sector", "")
+                        _snap_id = _mem.save_analysis(
+                            company_name=company,
+                            period=period,
+                            results=st.session_state["results"],
+                            sector=_sector,
+                        )
+                        st.session_state["memory_snap_id"] = _snap_id
+                        st.success(f"Pipeline complete! Memory saved (snap {_snap_id[:8]}…)")
+                    except Exception as _me:
+                        st.success("Pipeline complete!")
+                        st.caption(f"Memory save skipped: {_me}")
+                else:
+                    st.success("Pipeline complete!")
             except Exception as e:
                 st.error(f"Pipeline error: {e}")
 
@@ -569,6 +591,7 @@ tabs = st.tabs([
     "🔍 RAG & Audit",
     "💰 CapEx Analysis",
     "👤 HITL Approval",
+    "🏦 Institutional Memory",
 ])
 
 
@@ -1343,6 +1366,7 @@ with tabs[9]:
                 if _std:
                     st.caption(f"Accounting Standard: {_std}")
 
+                # ── VARIANCE EXCEEDS 10% ─────────────────────────────────────
                 if _reason == "variance_exceeds_10pct":
                     st.markdown("---")
                     st.markdown("**Line-Item Variance Breakdown (Budget vs Actuals)**")
@@ -1377,29 +1401,35 @@ with tabs[9]:
                     })
                     if _vrows:
                         st.dataframe(pd.DataFrame(_vrows), use_container_width=True, hide_index=True)
+
                     _mat_items = r["variance"].get("material_items", [])
                     if _mat_items:
-                        st.markdown(f"**SAB 99 Material Items (≥5%):** {', '.join(_vlabels.get(i, i) for i in _mat_items)}")
+                        _mat_names = ", ".join(_vlabels.get(i, i) for i in _mat_items)
+                        st.markdown(f"**SAB 99 Material Items (≥5%):** {_mat_names}")
+
                     _total_var_pct = abs(_var_totals.get("variance_pct", 0))
                     st.markdown("---")
                     st.markdown("**GAAP Disclosures Required:**")
                     st.markdown(f"""\
-- **SAB 99**: Total variance of {_total_var_pct:.1f}% exceeds 10% threshold. Quantitative AND qualitative materiality assessment required in MD&A. Qualitative factors (management intent, trend impact, segment concentration) can elevate materiality below 5%.
+- **SAB 99 (SEC Materiality)**: Total variance of {_total_var_pct:.1f}% exceeds the 10% quantitative threshold. Both quantitative AND qualitative materiality assessment required in MD&A. Per SAB 99 §1, qualitative factors (management intent, trend impact, segment concentration) can elevate materiality below 5%.
 - **SEC Reg S-K Item 303 (MD&A)**: Material changes in results of operations must be discussed and quantified. Provide period-over-period comparison with specific business drivers for each material line item.
-- **ASC 250-10**: Evaluate whether any variance results from a change in estimate or accounting policy requiring disclosure.
-- **ASC 280-10-50**: If variance is concentrated in a specific reportable segment, disaggregated segment footnote disclosure is required.
-- **Action**: Draft MD&A variance commentary for each material item; assign reviewer and sign-off deadline.\
+- **ASC 250-10 (Accounting Changes & Estimates)**: Evaluate whether any variance is driven by a change in estimate or accounting policy requiring prospective or retrospective disclosure.
+- **ASC 280-10-50 (Segment Reporting)**: If variance is concentrated in a specific reportable segment, disaggregated disclosure in segment footnotes is required with a management explanation.
+- **Action**: Draft MD&A variance commentary for each material item; assign reviewer and set sign-off deadline before report distribution.\
 """)
 
+                # ── GROSS MARGIN BELOW 30% ────────────────────────────────────
                 elif _reason == "gross_margin_below_30pct":
                     st.markdown("---")
                     _gm   = kpis.get("gross_margin_pct", 0)
                     _rev  = data.get("revenue", 1)
                     _cogs = data.get("cogs", 0)
+                    st.markdown("**Gross Margin Analysis:**")
                     _c1g, _c2g, _c3g = st.columns(3)
                     _c1g.metric("Gross Margin",    f"{_gm:.1f}%",    "Threshold: 30%")
                     _c2g.metric("Revenue",         fmt(_rev))
                     _c3g.metric("COGS",            fmt(_cogs),       f"{_cogs / _rev * 100:.1f}% of Rev")
+
                     _segs = data.get("segments", [])
                     if _segs:
                         st.markdown("**Segment Gross Margin (ASC 280):**")
@@ -1407,76 +1437,88 @@ with tabs[9]:
                         for _seg in _segs:
                             _sgm = round(_seg["gross_profit"] / _seg["revenue"] * 100, 1) if _seg["revenue"] else 0
                             _sgrows.append({
-                                "Segment": _seg["name"], "Revenue": fmt(_seg["revenue"]),
-                                "Gross Profit": fmt(_seg["gross_profit"]),
-                                "Gross Margin %": f"{_sgm:.1f}%",
-                                "Below 30%": "⚠ Yes" if _sgm < 30 else "✓ No",
+                                "Segment":         _seg["name"],
+                                "Revenue":         fmt(_seg["revenue"]),
+                                "Gross Profit":    fmt(_seg["gross_profit"]),
+                                "Gross Margin %":  f"{_sgm:.1f}%",
+                                "Below 30% Threshold": "⚠ Yes" if _sgm < 30 else "✓ No",
                             })
                         st.dataframe(pd.DataFrame(_sgrows), use_container_width=True, hide_index=True)
+
                     st.markdown("---")
                     st.markdown("**GAAP Disclosures Required:**")
                     st.markdown(f"""\
-- **ASC 280-10-50**: Disaggregate gross margin by reportable segment; disclose which segments are below 30% threshold.
-- **SAB 99**: Gross margin at {_gm:.1f}% is a qualitative materiality factor that elevates significance of COGS variances regardless of dollar amount.
-- **ASC 230 (MD&A Liquidity)**: If low gross margin compresses operating cash flow, disclose adequacy of liquidity sources and remediation plan.
-- **ASC 205-40**: Evaluate whether a deteriorating gross margin trend constitutes a going concern indicator. Document the evaluation in board minutes.
+- **ASC 280-10-50 (Segment Reporting)**: Disaggregate gross margin by reportable segment. Disclose which segments are below 30% threshold and provide the cost structure explanation.
+- **SAB 99 (Qualitative Materiality)**: Gross margin at {_gm:.1f}% is a qualitative materiality factor that elevates the significance of COGS variances regardless of their absolute dollar amount.
+- **ASC 230 (Cash Flows — MD&A Liquidity)**: If low gross margin compresses operating cash flow, disclose adequacy of liquidity sources and management's remediation plan in the Liquidity section of MD&A.
+- **ASC 205-40 (Going Concern)**: Evaluate whether a deteriorating gross margin trend constitutes a going concern indicator under the 12-month assessment window. Document the evaluation in board minutes.
 - **Action**: Prepare segment margin footnote, update MD&A Liquidity section, confirm ASC 205-40 board evaluation is documented.\
 """)
 
+                # ── MULTIPLE ANOMALIES ────────────────────────────────────────
                 elif _reason == "multiple_anomalies":
                     st.markdown("---")
-                    st.markdown(f"**All {len(r['anomalies'])} Statistical Anomaly Flags:**")
+                    st.markdown(f"**All {len(r['anomalies'])} Statistical Anomaly Flags Detected:**")
                     for _anom in r["anomalies"]:
                         if "CRITICAL" in _anom:
                             st.error(_anom)
                         else:
                             st.warning(_anom)
+
                     _has_going_concern = any("going concern" in a.lower() for a in r["anomalies"])
-                    _has_liquidity = any(kw in a.lower() for a in r["anomalies"] for kw in ("current ratio", "liquidity", "runway"))
+                    _has_liquidity     = any(
+                        kw in a.lower() for a in r["anomalies"]
+                        for kw in ("current ratio", "liquidity", "runway")
+                    )
                     st.markdown("---")
                     st.markdown("**GAAP Disclosures Required:**")
                     st.markdown(f"""\
-- **ASC 205-40**: {"Going concern indicators detected — evaluate substantial doubt and disclose in financial statements and MD&A." if _has_going_concern else "Evaluate anomaly pattern for going concern conditions. Document assessment in board minutes."}
-- **ASC 275**: Multiple anomalies constitute risk concentrations requiring footnote disclosure of nature of operations and key estimates subject to significant uncertainty.
-- **SEC MD&A (Reg S-K 303)**: Discuss each material anomaly in Results of Operations and Liquidity sections. Quantify the trend and explain management's response plan.
-- **{"ASC 230: " + ("Current ratio / liquidity anomaly — disclose available liquidity sources and adequacy assessment." if _has_liquidity else "Ensure operating metric anomalies are addressed in the Liquidity section with specific remediation actions.")}
-- **Action**: Map each anomaly flag to a specific MD&A paragraph, footnote, or board disclosure item.\
+- **ASC 205-40 (Going Concern)**: {"Going concern indicators detected — management must evaluate whether conditions raise substantial doubt. Disclosure required in the financial statements and MD&A." if _has_going_concern else "Evaluate the full anomaly pattern for ASC 205-40 going concern conditions. Document the assessment in board minutes."}
+- **ASC 275 (Risks and Uncertainties)**: Multiple statistical anomalies constitute risk concentrations requiring footnote disclosure of the nature of operations and key estimates subject to significant uncertainty.
+- **SEC MD&A (Reg S-K Item 303)**: Discuss each material anomaly in the Results of Operations and Liquidity & Capital Resources sections. Quantify the trend and explain management's response plan.
+- **{"ASC 230 / Liquidity: " + ("Current ratio anomaly — disclose available liquidity sources and adequacy assessment in MD&A Liquidity section." if _has_liquidity else "Ensure operating metric anomalies are addressed in the Liquidity section with specific remediation actions.")}
+- **Action**: Map each anomaly flag to a specific MD&A paragraph, footnote, or board disclosure item. Assign owner and deadline.\
 """)
 
+                # ── GAAP / IFRS COMPLIANCE TRIGGERS ──────────────────────────
                 elif _reason.startswith("gaap_") or _reason.startswith("ifrs_"):
                     _framework   = "GAAP" if _reason.startswith("gaap_") else "IFRS"
                     _status_type = "NON_COMPLIANT" if "NON_COMPLIANT" in _reason else "DISCLOSURE_REQUIRED"
                     _all_comp    = r["gaap"] if _framework == "GAAP" else r["ifrs"]
+
                     st.markdown("---")
                     st.markdown(f"**{_framework} Compliance Finding:**")
                     for _ckey, _cval in _all_comp.items():
                         if _cval.get("status") == _status_type and _std and (
-                            _cval.get("standard") == _std or _std in str(_cval.get("standard", ""))
+                            _cval.get("standard") == _std
+                            or _std in str(_cval.get("standard", ""))
                         ):
                             st.markdown(f"**Standard:** {_cval.get('standard', _std)}")
                             st.markdown(f"**Finding:** {_cval.get('finding', _msg)}")
                             _issues = _cval.get("issues", [])
                             if _issues:
+                                st.markdown("**Issues identified:**")
                                 for _iss in _issues:
                                     st.caption(f"• {_iss}")
                             break
+
                     st.markdown("---")
                     st.markdown("**GAAP Disclosures Required:**")
                     if _status_type == "NON_COMPLIANT":
                         st.markdown(f"""\
-- **Immediate corrective action** for {_std}: Non-compliance must be remediated before report issuance.
-- **ASC 250-10 / IAS 8**: If prior periods are affected, evaluate restatement requirements and prepare disclosure language.
-- **Auditor communication**: Non-compliance must be disclosed to external auditors immediately — risk of qualified opinion.
-- **SEC Form 8-K (Item 4.02)**: Evaluate whether non-reliance disclosure is required on previously issued financial statements.
-- **Action**: Escalate to auditors within 24 hours; prepare remediation plan with sign-off timeline.\
+- **Immediate corrective action required** for {_std}: Non-compliance must be remediated before report issuance. Engage external auditors and legal counsel.
+- **ASC 250-10 / IAS 8 (Restatement)**: If prior periods are affected, evaluate whether restatement is required and prepare restatement disclosure language.
+- **Auditor communication**: Non-compliance must be disclosed to the external audit team immediately; risk of qualified or adverse opinion if unresolved.
+- **SEC Form 8-K (Item 4.02)**: If the non-compliance relates to previously issued financial statements, evaluate whether Form 8-K disclosure is required under Item 4.02 (Non-Reliance on Previously Issued Financial Statements).
+- **Action**: Escalate to external auditors within 24 hours; prepare remediation plan with specific ASC/IFRS remediation steps and sign-off timeline.\
 """)
                     else:
                         st.markdown(f"""\
-- **Footnote disclosure required** for {_std}: Assign footnote number, primary drafter, and review deadline.
-- **MD&A cross-reference**: Reference the footnote in the relevant MD&A section applicable to {_std}.
-- **ASC 250 / IAS 8**: Ensure disclosure language is consistent with prior period disclosures; document any policy change.
-- **Auditor sign-off**: Share draft footnote with external auditors for review before finalizing.
-- **Action**: Draft footnote, cross-reference in MD&A, confirm with auditors, update disclosure checklist.\
+- **Footnote disclosure required** for {_std}: Prepare the specific footnote addressing this disclosure requirement. Assign a footnote number, primary drafter, and review deadline.
+- **MD&A cross-reference**: Reference the footnote in the relevant MD&A section (Liquidity & Capital Resources, Critical Accounting Estimates, or Contractual Obligations as applicable to {_std}).
+- **ASC 250 / IAS 8 (Consistency)**: Ensure disclosure language is consistent with prior period disclosures or document and disclose the reason for any policy change.
+- **Auditor sign-off**: Share draft footnote language with external auditors for review before finalizing; confirm no additional disclosure is required.
+- **Action**: Draft footnote, cross-reference in MD&A, confirm with auditors, and update disclosure checklist.\
 """)
 
         st.divider()
@@ -1521,6 +1563,11 @@ with tabs[9]:
                         st.session_state["hitl_approver"]  = _approver
                         st.session_state["hitl_notes"]     = _notes
                         st.session_state["hitl_timestamp"] = _dt.utcnow().isoformat() + "Z"
+                        try:
+                            from backend.memory.engine import get_memory_engine as _gme
+                            _gme().update_hitl(r["company"], r["period"], "approved", _approver, _notes)
+                        except Exception:
+                            pass
                         st.rerun()
                     else:
                         st.warning("Please fill in both Approver Name and Review Notes.")
@@ -1531,6 +1578,11 @@ with tabs[9]:
                         st.session_state["hitl_approver"]  = _approver
                         st.session_state["hitl_notes"]     = _notes
                         st.session_state["hitl_timestamp"] = _dt.utcnow().isoformat() + "Z"
+                        try:
+                            from backend.memory.engine import get_memory_engine as _gme
+                            _gme().update_hitl(r["company"], r["period"], "rejected", _approver, _notes)
+                        except Exception:
+                            pass
                         st.rerun()
                     else:
                         st.warning("Please fill in both Approver Name and Review Notes.")
@@ -1586,3 +1638,326 @@ with tabs[9]:
             st.dataframe(pd.DataFrame(_log_rows), use_container_width=True, hide_index=True)
         else:
             st.caption("No approval actions recorded this session.")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  TAB 11 · INSTITUTIONAL MEMORY
+# ══════════════════════════════════════════════════════════════════════════════
+with tabs[10]:
+    import altair as alt
+
+    st.subheader("Institutional Memory — Accumulated Company Knowledge")
+    st.caption(
+        "KPIs, compliance history, HITL decisions, and AI insights are persisted across "
+        "every pipeline run — building an institutional record that grows richer over time."
+    )
+
+    try:
+        from backend.memory.engine import get_memory_engine as _gme
+        _mem_eng = _gme()
+
+        # ── Company selector ─────────────────────────────────────────────────
+        _all_cos = _mem_eng.get_all_companies()
+
+        if not _all_cos:
+            st.info(
+                "No institutional memory yet.  Run the **Deterministic Pipeline** with "
+                "**Auto-save to Institutional Memory** enabled to start building the record."
+            )
+        else:
+            # Summary cards
+            st.markdown(f"**{len(_all_cos)} companies in memory**")
+            _co_cols = st.columns(min(len(_all_cos), 4))
+            for _ci, _co in enumerate(_all_cos[:4]):
+                with _co_cols[_ci]:
+                    _n_analyses = _co["analysis_count"]
+                    st.metric(
+                        _co["company_name"][:22],
+                        f"{_n_analyses} period{'s' if _n_analyses != 1 else ''}",
+                        f"GM {_co['avg_gross_margin']:.1f}% avg",
+                    )
+
+            st.divider()
+
+            # Company deep-dive
+            _co_names = [c["company_name"] for c in _all_cos]
+            _default_idx = _co_names.index(r["company"]) if r["company"] in _co_names else 0
+            _selected_co = st.selectbox(
+                "Select company to explore",
+                _co_names,
+                index=_default_idx,
+                key="mem_co_select",
+            )
+            _co_record = next(c for c in _all_cos if c["company_name"] == _selected_co)
+            _snapshots = _mem_eng.get_company_snapshots(_selected_co)
+
+            # ── KPI Summary bar ──────────────────────────────────────────────
+            _mc1, _mc2, _mc3, _mc4, _mc5 = st.columns(5)
+            _mc1.metric("Periods tracked",  _co_record["analysis_count"])
+            _mc2.metric("Avg Gross Margin", f"{_co_record['avg_gross_margin']:.1f}%")
+            _mc3.metric("Avg EBITDA Margin",f"{_co_record['avg_ebitda_margin']:.1f}%")
+            _mc4.metric("Avg Net Margin",   f"{_co_record['avg_net_margin']:.1f}%")
+            _mc5.metric("HITL Approval Rate", f"{_co_record['hitl_approval_rate']:.0f}%")
+
+            # ── KPI Trend Charts ─────────────────────────────────────────────
+            st.divider()
+            st.subheader("KPI Trends Over Time")
+            _trend_kpis = ["gross_margin_pct", "ebitda_margin_pct", "net_margin_pct",
+                           "current_ratio", "debt_to_equity", "dso_days"]
+            _trends = _mem_eng.get_kpi_trends(_selected_co, _trend_kpis)
+
+            if any(_trends.values()):
+                _trend_rows = []
+                for _kname, _pts in _trends.items():
+                    for _pt in _pts:
+                        _trend_rows.append({
+                            "Period":   _pt["period"],
+                            "Value":    _pt["value"],
+                            "KPI":      _kname.replace("_pct", " %").replace("_", " ").title(),
+                            "Unit":     _pt["unit"],
+                        })
+                _trend_df = pd.DataFrame(_trend_rows)
+
+                _kpi_labels = _trend_df["KPI"].unique().tolist()
+                _selected_kpis = st.multiselect(
+                    "KPIs to chart",
+                    _kpi_labels,
+                    default=_kpi_labels[:3],
+                    key="mem_kpi_select",
+                )
+                if _selected_kpis:
+                    _chart_df = _trend_df[_trend_df["KPI"].isin(_selected_kpis)]
+                    _trend_chart = (
+                        alt.Chart(_chart_df)
+                        .mark_line(point=alt.OverlayMarkDef(filled=True, size=80))
+                        .encode(
+                            x=alt.X("Period:N", sort=None, axis=alt.Axis(labelAngle=-30, title=None)),
+                            y=alt.Y("Value:Q", title="Value"),
+                            color=alt.Color("KPI:N", legend=alt.Legend(title=None)),
+                            tooltip=["Period", "KPI", alt.Tooltip("Value:Q", format=".2f")],
+                        )
+                        .properties(height=320, title="KPI Trend — All Tracked Periods")
+                    )
+                    st.altair_chart(_trend_chart, use_container_width=True)
+            else:
+                st.info("No KPI time-series data yet — run more pipeline periods.")
+
+            # ── Period-over-Period Comparison Table ──────────────────────────
+            st.divider()
+            st.subheader("Period-over-Period Comparison")
+            if len(_snapshots) >= 2:
+                _pop_rows = []
+                _pop_kpis = ["gross_margin_pct","ebitda_margin_pct","net_margin_pct",
+                             "current_ratio","debt_to_equity","dso_days","ccc_days"]
+                _pop_labels = {
+                    "gross_margin_pct":  "Gross Margin %",
+                    "ebitda_margin_pct": "EBITDA Margin %",
+                    "net_margin_pct":    "Net Margin %",
+                    "current_ratio":     "Current Ratio",
+                    "debt_to_equity":    "Debt / Equity",
+                    "dso_days":          "DSO (days)",
+                    "ccc_days":          "CCC (days)",
+                }
+                _latest = _snapshots[-1]
+                _prev   = _snapshots[-2]
+                _lk = _latest["kpi_metrics"]
+                _pk = _prev["kpi_metrics"]
+                for _k, _label in _pop_labels.items():
+                    _lv = _lk.get(_k)
+                    _pv = _pk.get(_k)
+                    if _lv is not None and _pv is not None:
+                        _delta = round(_lv - _pv, 2)
+                        _dpct  = round(_delta / abs(_pv) * 100, 1) if _pv else 0.0
+                        _pop_rows.append({
+                            "KPI":           _label,
+                            f"{_prev['period']}": round(_pv, 2),
+                            f"{_latest['period']}": round(_lv, 2),
+                            "Delta":         f"{_delta:+.2f}",
+                            "Delta %":       f"{_dpct:+.1f}%",
+                            "Trend":         "↑" if _delta > 0 else ("↓" if _delta < 0 else "→"),
+                        })
+                if _pop_rows:
+                    st.dataframe(pd.DataFrame(_pop_rows), use_container_width=True, hide_index=True)
+            elif len(_snapshots) == 1:
+                st.info("Only one period stored — run another period to see period-over-period comparison.")
+            else:
+                st.info("No snapshots yet.")
+
+            # ── All Periods KPI History ──────────────────────────────────────
+            st.divider()
+            st.subheader("Full KPI History by Period")
+            if _snapshots:
+                _hist_rows = []
+                for _s in _snapshots:
+                    _k = _s["kpi_metrics"]
+                    _hist_rows.append({
+                        "Period":       _s["period"],
+                        "Analyzed":     str(_s["analyzed_at"])[:10] if _s["analyzed_at"] else "—",
+                        "GM %":         f"{_k.get('gross_margin_pct',0):.1f}%",
+                        "EBITDA %":     f"{_k.get('ebitda_margin_pct',0):.1f}%",
+                        "NM %":         f"{_k.get('net_margin_pct',0):.1f}%",
+                        "Curr. Ratio":  f"{_k.get('current_ratio',0):.2f}x",
+                        "DSO":          f"{_k.get('dso_days',0):.0f}d",
+                        "Anomalies":    len(_s["anomaly_flags"]),
+                        "HITL":         _s["hitl_decision"].upper(),
+                        "Approver":     _s["hitl_approver"] or "—",
+                    })
+                st.dataframe(pd.DataFrame(_hist_rows), use_container_width=True, hide_index=True)
+
+            # ── Peer Benchmarks ──────────────────────────────────────────────
+            if len(_all_cos) > 1:
+                st.divider()
+                st.subheader("Peer Benchmarks")
+                _peer = _mem_eng.get_peer_benchmarks(exclude_company=_selected_co)
+                _pb1, _pb2, _pb3, _pb4 = st.columns(4)
+                _pb1.metric("Peer Avg Gross Margin",
+                            f"{_peer.get('avg_gross_margin',0):.1f}%",
+                            f"{_co_record['avg_gross_margin'] - _peer.get('avg_gross_margin',0):+.1f}% vs you")
+                _pb2.metric("Peer Avg EBITDA Margin",
+                            f"{_peer.get('avg_ebitda_margin',0):.1f}%",
+                            f"{_co_record['avg_ebitda_margin'] - _peer.get('avg_ebitda_margin',0):+.1f}% vs you")
+                _pb3.metric("Peer Avg Net Margin",
+                            f"{_peer.get('avg_net_margin',0):.1f}%",
+                            f"{_co_record['avg_net_margin'] - _peer.get('avg_net_margin',0):+.1f}% vs you")
+                _pb4.metric("Peer HITL Approval Rate",
+                            f"{_peer.get('avg_approval_rate',0):.0f}%",
+                            f"{_co_record['hitl_approval_rate'] - _peer.get('avg_approval_rate',0):+.0f}% vs you")
+
+                # Peer comparison bar chart
+                _peer_chart_data = []
+                for _pco in _all_cos:
+                    _peer_chart_data.append({
+                        "Company":      _pco["company_name"][:20],
+                        "Gross Margin %": _pco["avg_gross_margin"],
+                        "EBITDA Margin %": _pco["avg_ebitda_margin"],
+                        "Is Selected":  _pco["company_name"] == _selected_co,
+                    })
+                _pcd = pd.DataFrame(_peer_chart_data)
+                _peer_bars = (
+                    alt.Chart(_pcd)
+                    .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
+                    .encode(
+                        x=alt.X("Company:N", sort="-y", axis=alt.Axis(labelAngle=-30, title=None)),
+                        y=alt.Y("Gross Margin %:Q", title="Avg Gross Margin %"),
+                        color=alt.condition(
+                            alt.datum["Is Selected"],
+                            alt.value("#F59E0B"),
+                            alt.value("#3B82F6"),
+                        ),
+                        tooltip=["Company", "Gross Margin %", "EBITDA Margin %"],
+                    )
+                    .properties(height=260, title="Peer Gross Margin Comparison (you = amber)")
+                )
+                st.altair_chart(_peer_bars, use_container_width=True)
+
+            # ── Recurring Issues ─────────────────────────────────────────────
+            st.divider()
+            st.subheader("Recurring Issues & Compliance History")
+            _rec_anom = _co_record.get("recurring_anomalies", [])
+            _rec_comp = _co_record.get("compliance_issues", [])
+
+            _ri1, _ri2 = st.columns(2)
+            with _ri1:
+                st.markdown("**Recurring Anomalies (≥ 2 periods)**")
+                if _rec_anom:
+                    for _a in _rec_anom:
+                        if "CRITICAL" in _a:
+                            st.error(_a)
+                        else:
+                            st.warning(_a)
+                else:
+                    st.success("No recurring anomalies.")
+
+            with _ri2:
+                st.markdown("**Recurring Compliance Issues (≥ 2 periods)**")
+                if _rec_comp:
+                    for _c in _rec_comp:
+                        st.warning(f"⚠ {_c} — appeared in multiple periods")
+                else:
+                    st.success("No recurring compliance issues.")
+
+            # ── Active Insights Timeline ─────────────────────────────────────
+            st.divider()
+            st.subheader("Active Insights Timeline")
+            _insights = _mem_eng.get_insights(_selected_co, active_only=True)
+            if _insights:
+                _ins_df = pd.DataFrame([{
+                    "Period":   i["period"],
+                    "Type":     i["insight_type"].capitalize(),
+                    "Severity": i["severity"].upper(),
+                    "Source":   i["source"],
+                    "Finding":  i["content"][:120],
+                    "Logged":   str(i["created_at"])[:10] if i["created_at"] else "—",
+                } for i in _insights])
+                st.dataframe(_ins_df, use_container_width=True, hide_index=True)
+            else:
+                st.success("No active insights recorded.")
+
+            # ── HITL Decision Log ────────────────────────────────────────────
+            st.divider()
+            st.subheader("HITL Decision Log (all periods)")
+            _hitl_snaps = [s for s in _snapshots if s["hitl_decision"] != "pending"]
+            if _hitl_snaps:
+                _hlog = pd.DataFrame([{
+                    "Period":    s["period"],
+                    "Decision":  s["hitl_decision"].upper(),
+                    "Approver":  s["hitl_approver"] or "—",
+                    "Triggers":  len(s["approval_triggers"]),
+                    "Notes":     (s["hitl_notes"] or "")[:80],
+                    "Timestamp": str(s["hitl_timestamp"])[:16] if s["hitl_timestamp"] else "—",
+                } for s in _hitl_snaps])
+                st.dataframe(_hlog, use_container_width=True, hide_index=True)
+            else:
+                st.info("No HITL decisions recorded yet.")
+
+            # ── AI Institutional Knowledge Synthesis ─────────────────────────
+            st.divider()
+            st.subheader("AI Institutional Knowledge Synthesis")
+            _existing_summary = _co_record.get("institutional_summary", "")
+            if _existing_summary:
+                st.markdown(_existing_summary)
+            else:
+                st.info("No synthesis yet — click the button below to generate.")
+
+            if st.button("🧠 Synthesize Institutional Knowledge", key="mem_synth_btn"):
+                with st.spinner("Generating institutional knowledge summary …"):
+                    try:
+                        from backend.llm.adapter import get_adapter as _ga
+                        _synth = _mem_eng.synthesize_knowledge(_selected_co, _ga())
+                        st.markdown(_synth)
+                        st.success("Institutional knowledge synthesized and saved!")
+                    except Exception as _se:
+                        st.error(f"Synthesis error: {_se}")
+
+            # ── Export ───────────────────────────────────────────────────────
+            st.divider()
+            if _snapshots:
+                _export_rows = []
+                for _s in _snapshots:
+                    _k = _s["kpi_metrics"]
+                    _export_rows.append({
+                        "company":       _selected_co,
+                        "period":        _s["period"],
+                        "analyzed_at":   str(_s["analyzed_at"])[:19] if _s["analyzed_at"] else "",
+                        "gross_margin":  _k.get("gross_margin_pct", ""),
+                        "ebitda_margin": _k.get("ebitda_margin_pct", ""),
+                        "net_margin":    _k.get("net_margin_pct", ""),
+                        "current_ratio": _k.get("current_ratio", ""),
+                        "dso_days":      _k.get("dso_days", ""),
+                        "anomaly_count": len(_s["anomaly_flags"]),
+                        "hitl_decision": _s["hitl_decision"],
+                        "hitl_approver": _s["hitl_approver"],
+                    })
+                _export_csv = pd.DataFrame(_export_rows).to_csv(index=False)
+                st.download_button(
+                    "⬇ Export Memory as CSV",
+                    data=_export_csv,
+                    file_name=f"institutional_memory_{_selected_co.replace(' ', '_')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+
+    except Exception as _mem_tab_err:
+        st.error(f"Memory tab error: {_mem_tab_err}")
+        import traceback
+        st.code(traceback.format_exc())
