@@ -723,7 +723,11 @@ Please provide:
 4. **Overall Materiality Assessment** — is the aggregate variance pattern a concern?
 
 Be specific with dollar amounts. Cite ASC standards and SAB 99 where relevant."""
-                _sab99_response = _adapter.complete(_sab99_prompt, max_tokens=1800)
+                _sab99_response = _adapter.complete(
+                    "You are a Lead Audit CPA specializing in SEC materiality standards under SAB 99.",
+                    _sab99_prompt,
+                    max_tokens=1800,
+                )
                 st.session_state["sab99_ai_response"] = _sab99_response
                 st.success("SAB 99 analysis complete!")
             except Exception as _e:
@@ -1278,7 +1282,11 @@ Please provide a structured CFO-level analysis:
 
 Cite all relevant accounting standards with ASC/IFRS numbers."""
 
-                _capex_response = _adapter.complete(_capex_prompt, max_tokens=2000)
+                _capex_response = _adapter.complete(
+                    "You are a Lead Audit CPA and CFO advisor specializing in capital expenditure and free cash flow analysis.",
+                    _capex_prompt,
+                    max_tokens=2000,
+                )
                 st.session_state["capex_ai_response"] = _capex_response
                 st.success("CapEx analysis complete!")
             except Exception as _e:
@@ -1316,20 +1324,160 @@ with tabs[9]:
             "CFO review is required before report distribution."
         )
 
-        with st.expander("Approval Triggers Detail", expanded=True):
-            for _t in _hitl_triggers:
-                _sev    = _t.get("severity", "high")
-                _reason = _t.get("reason", "trigger")
-                _msg    = _t.get("message", "")
-                _std    = _t.get("standard", "")
-                _disc   = " · Disclosure required" if _t.get("requires_disclosure") else ""
-                _detail = f"**{_reason.replace('_', ' ').upper()}** — {_msg}{_disc}"
-                if _std:
-                    _detail += f" ({_std})"
+        st.markdown("#### Approval Triggers — Expand Each for Full Detail")
+        for _t in _hitl_triggers:
+            _sev    = _t.get("severity", "high")
+            _reason = _t.get("reason", "trigger")
+            _msg    = _t.get("message", "")
+            _std    = _t.get("standard", "")
+            _disc   = _t.get("requires_disclosure", False)
+
+            _sev_icon  = "🔴 CRITICAL" if _sev == "critical" else "🟡 HIGH"
+            _exp_label = f"{_sev_icon}  |  {_reason.replace('_', ' ').upper()}"
+
+            with st.expander(_exp_label, expanded=True):
                 if _sev == "critical":
-                    st.error(f"🔴 CRITICAL  |  {_detail}")
+                    st.error(f"{_msg}" + (" — **Disclosure Required**" if _disc else ""))
                 else:
-                    st.warning(f"🟡 HIGH      |  {_detail}")
+                    st.warning(f"{_msg}" + (" — Disclosure Required" if _disc else ""))
+                if _std:
+                    st.caption(f"Accounting Standard: {_std}")
+
+                if _reason == "variance_exceeds_10pct":
+                    st.markdown("---")
+                    st.markdown("**Line-Item Variance Breakdown (Budget vs Actuals)**")
+                    _var_items  = r["variance"].get("line_items", {})
+                    _var_totals = r["variance"].get("totals", {})
+                    _vlabels = {
+                        "revenue": "Revenue", "cogs": "Cost of Revenue",
+                        "gross_profit": "Gross Profit", "ebitda": "EBITDA",
+                        "rd_expense": "R&D Expense", "sg_a": "SG&A Expense",
+                    }
+                    _vrows = []
+                    for _vk, _vl in _vlabels.items():
+                        _vi = _var_items.get(_vk, {})
+                        if _vi:
+                            _vrows.append({
+                                "Line Item":       _vl,
+                                "Actual":          fmt(_vi["actual"]),
+                                "Budget":          fmt(_vi["budget"]),
+                                "Variance $":      fmt(_vi["variance_abs"]),
+                                "Variance %":      f"{_vi['variance_pct']:+.1f}%",
+                                "Favorable":       "✓" if _vi["favorable"] else "✗",
+                                "SAB 99 Material": "⚠ Yes" if _vi["material"] else "No",
+                            })
+                    _vrows.append({
+                        "Line Item":       "TOTAL",
+                        "Actual":          fmt(_var_totals.get("actual", 0)),
+                        "Budget":          fmt(_var_totals.get("budget", 0)),
+                        "Variance $":      fmt(_var_totals.get("variance_abs", 0)),
+                        "Variance %":      f"{_var_totals.get('variance_pct', 0):+.1f}%",
+                        "Favorable":       "✓" if _var_totals.get("favorable") else "✗",
+                        "SAB 99 Material": "—",
+                    })
+                    if _vrows:
+                        st.dataframe(pd.DataFrame(_vrows), use_container_width=True, hide_index=True)
+                    _mat_items = r["variance"].get("material_items", [])
+                    if _mat_items:
+                        st.markdown(f"**SAB 99 Material Items (≥5%):** {', '.join(_vlabels.get(i, i) for i in _mat_items)}")
+                    _total_var_pct = abs(_var_totals.get("variance_pct", 0))
+                    st.markdown("---")
+                    st.markdown("**GAAP Disclosures Required:**")
+                    st.markdown(f"""\
+- **SAB 99**: Total variance of {_total_var_pct:.1f}% exceeds 10% threshold. Quantitative AND qualitative materiality assessment required in MD&A. Qualitative factors (management intent, trend impact, segment concentration) can elevate materiality below 5%.
+- **SEC Reg S-K Item 303 (MD&A)**: Material changes in results of operations must be discussed and quantified. Provide period-over-period comparison with specific business drivers for each material line item.
+- **ASC 250-10**: Evaluate whether any variance results from a change in estimate or accounting policy requiring disclosure.
+- **ASC 280-10-50**: If variance is concentrated in a specific reportable segment, disaggregated segment footnote disclosure is required.
+- **Action**: Draft MD&A variance commentary for each material item; assign reviewer and sign-off deadline.\
+""")
+
+                elif _reason == "gross_margin_below_30pct":
+                    st.markdown("---")
+                    _gm   = kpis.get("gross_margin_pct", 0)
+                    _rev  = data.get("revenue", 1)
+                    _cogs = data.get("cogs", 0)
+                    _c1g, _c2g, _c3g = st.columns(3)
+                    _c1g.metric("Gross Margin",    f"{_gm:.1f}%",    "Threshold: 30%")
+                    _c2g.metric("Revenue",         fmt(_rev))
+                    _c3g.metric("COGS",            fmt(_cogs),       f"{_cogs / _rev * 100:.1f}% of Rev")
+                    _segs = data.get("segments", [])
+                    if _segs:
+                        st.markdown("**Segment Gross Margin (ASC 280):**")
+                        _sgrows = []
+                        for _seg in _segs:
+                            _sgm = round(_seg["gross_profit"] / _seg["revenue"] * 100, 1) if _seg["revenue"] else 0
+                            _sgrows.append({
+                                "Segment": _seg["name"], "Revenue": fmt(_seg["revenue"]),
+                                "Gross Profit": fmt(_seg["gross_profit"]),
+                                "Gross Margin %": f"{_sgm:.1f}%",
+                                "Below 30%": "⚠ Yes" if _sgm < 30 else "✓ No",
+                            })
+                        st.dataframe(pd.DataFrame(_sgrows), use_container_width=True, hide_index=True)
+                    st.markdown("---")
+                    st.markdown("**GAAP Disclosures Required:**")
+                    st.markdown(f"""\
+- **ASC 280-10-50**: Disaggregate gross margin by reportable segment; disclose which segments are below 30% threshold.
+- **SAB 99**: Gross margin at {_gm:.1f}% is a qualitative materiality factor that elevates significance of COGS variances regardless of dollar amount.
+- **ASC 230 (MD&A Liquidity)**: If low gross margin compresses operating cash flow, disclose adequacy of liquidity sources and remediation plan.
+- **ASC 205-40**: Evaluate whether a deteriorating gross margin trend constitutes a going concern indicator. Document the evaluation in board minutes.
+- **Action**: Prepare segment margin footnote, update MD&A Liquidity section, confirm ASC 205-40 board evaluation is documented.\
+""")
+
+                elif _reason == "multiple_anomalies":
+                    st.markdown("---")
+                    st.markdown(f"**All {len(r['anomalies'])} Statistical Anomaly Flags:**")
+                    for _anom in r["anomalies"]:
+                        if "CRITICAL" in _anom:
+                            st.error(_anom)
+                        else:
+                            st.warning(_anom)
+                    _has_going_concern = any("going concern" in a.lower() for a in r["anomalies"])
+                    _has_liquidity = any(kw in a.lower() for a in r["anomalies"] for kw in ("current ratio", "liquidity", "runway"))
+                    st.markdown("---")
+                    st.markdown("**GAAP Disclosures Required:**")
+                    st.markdown(f"""\
+- **ASC 205-40**: {"Going concern indicators detected — evaluate substantial doubt and disclose in financial statements and MD&A." if _has_going_concern else "Evaluate anomaly pattern for going concern conditions. Document assessment in board minutes."}
+- **ASC 275**: Multiple anomalies constitute risk concentrations requiring footnote disclosure of nature of operations and key estimates subject to significant uncertainty.
+- **SEC MD&A (Reg S-K 303)**: Discuss each material anomaly in Results of Operations and Liquidity sections. Quantify the trend and explain management's response plan.
+- **{"ASC 230: " + ("Current ratio / liquidity anomaly — disclose available liquidity sources and adequacy assessment." if _has_liquidity else "Ensure operating metric anomalies are addressed in the Liquidity section with specific remediation actions.")}
+- **Action**: Map each anomaly flag to a specific MD&A paragraph, footnote, or board disclosure item.\
+""")
+
+                elif _reason.startswith("gaap_") or _reason.startswith("ifrs_"):
+                    _framework   = "GAAP" if _reason.startswith("gaap_") else "IFRS"
+                    _status_type = "NON_COMPLIANT" if "NON_COMPLIANT" in _reason else "DISCLOSURE_REQUIRED"
+                    _all_comp    = r["gaap"] if _framework == "GAAP" else r["ifrs"]
+                    st.markdown("---")
+                    st.markdown(f"**{_framework} Compliance Finding:**")
+                    for _ckey, _cval in _all_comp.items():
+                        if _cval.get("status") == _status_type and _std and (
+                            _cval.get("standard") == _std or _std in str(_cval.get("standard", ""))
+                        ):
+                            st.markdown(f"**Standard:** {_cval.get('standard', _std)}")
+                            st.markdown(f"**Finding:** {_cval.get('finding', _msg)}")
+                            _issues = _cval.get("issues", [])
+                            if _issues:
+                                for _iss in _issues:
+                                    st.caption(f"• {_iss}")
+                            break
+                    st.markdown("---")
+                    st.markdown("**GAAP Disclosures Required:**")
+                    if _status_type == "NON_COMPLIANT":
+                        st.markdown(f"""\
+- **Immediate corrective action** for {_std}: Non-compliance must be remediated before report issuance.
+- **ASC 250-10 / IAS 8**: If prior periods are affected, evaluate restatement requirements and prepare disclosure language.
+- **Auditor communication**: Non-compliance must be disclosed to external auditors immediately — risk of qualified opinion.
+- **SEC Form 8-K (Item 4.02)**: Evaluate whether non-reliance disclosure is required on previously issued financial statements.
+- **Action**: Escalate to auditors within 24 hours; prepare remediation plan with sign-off timeline.\
+""")
+                    else:
+                        st.markdown(f"""\
+- **Footnote disclosure required** for {_std}: Assign footnote number, primary drafter, and review deadline.
+- **MD&A cross-reference**: Reference the footnote in the relevant MD&A section applicable to {_std}.
+- **ASC 250 / IAS 8**: Ensure disclosure language is consistent with prior period disclosures; document any policy change.
+- **Auditor sign-off**: Share draft footnote with external auditors for review before finalizing.
+- **Action**: Draft footnote, cross-reference in MD&A, confirm with auditors, update disclosure checklist.\
+""")
 
         st.divider()
         st.subheader("CFO Review Decision")
