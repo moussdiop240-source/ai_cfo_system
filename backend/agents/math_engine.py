@@ -68,26 +68,28 @@ class FinancialCalculationEngine:
         """15 exact KPIs — no rounding errors, no LLM."""
         safe_div = lambda n, d, m=1: round((n / d) * m, 2) if d else 0.0
 
-        revenue         = float(data.get("revenue", 0))
-        cogs            = float(data.get("cogs", 0))
-        gross_profit    = float(data.get("gross_profit", revenue - cogs))
-        ebitda          = float(data.get("ebitda", 0))
-        ebit            = float(data.get("ebit", ebitda))
-        net_income      = float(data.get("net_income", 0))
-        total_assets    = float(data.get("total_assets", 0))
-        total_equity    = float(data.get("total_equity", 1))
-        current_assets  = float(data.get("current_assets", 0))
-        current_liab    = float(data.get("current_liabilities", 1))
-        inventory       = float(data.get("inventory", 0))
-        total_debt      = float(data.get("total_debt", 0))
-        cash            = float(data.get("cash", 0))
-        ar              = float(data.get("accounts_receivable", 0))
-        ap              = float(data.get("accounts_payable", 0))
-        shares          = float(data.get("shares_outstanding", 1))
-        diluted_shares  = float(data.get("diluted_shares", shares))
-        interest_exp    = float(data.get("interest_expense", 0))
-        tax_provision   = float(data.get("tax_provision", 0))
-        pre_tax_income  = float(data.get("pre_tax_income", net_income + tax_provision))
+        _f = lambda v, d=0: float(v) if v is not None else float(d)
+
+        revenue         = _f(data.get("revenue"), 0)
+        cogs            = _f(data.get("cogs"), 0)
+        gross_profit    = _f(data.get("gross_profit"), revenue - cogs)
+        ebitda          = _f(data.get("ebitda"), 0)
+        ebit            = _f(data.get("ebit"), ebitda)
+        net_income      = _f(data.get("net_income"), 0)
+        total_assets    = _f(data.get("total_assets"), 0)
+        total_equity    = _f(data.get("total_equity"), 1)
+        current_assets  = _f(data.get("current_assets"), 0)
+        current_liab    = _f(data.get("current_liabilities"), 1)
+        inventory       = _f(data.get("inventory"), 0)
+        total_debt      = _f(data.get("total_debt"), 0)
+        cash            = _f(data.get("cash"), 0)
+        ar              = _f(data.get("accounts_receivable"), 0)
+        ap              = _f(data.get("accounts_payable"), 0)
+        shares          = _f(data.get("shares_outstanding"), 1)
+        diluted_shares  = _f(data.get("diluted_shares"), shares)
+        interest_exp    = _f(data.get("interest_expense"), 0)
+        tax_provision   = _f(data.get("tax_provision"), 0)
+        pre_tax_income  = _f(data.get("pre_tax_income"), net_income + tax_provision)
 
         dso = safe_div(ar, revenue / 365) if revenue else 0.0
         dio = safe_div(inventory, cogs / 365) if cogs else 0.0
@@ -120,8 +122,12 @@ class FinancialCalculationEngine:
         self, historical: List[float], periods: int = 12
     ) -> Dict[str, Any]:
         """Dual model: sklearn LinearRegression + Holt-Winters ensemble (40/60 blend)."""
+        if periods == 0:
+            return {"forecast": [], "method": "linear_extrapolation", "r2": None}
         if len(historical) < 4:
-            trend = (historical[-1] - historical[0]) / max(len(historical) - 1, 1) if historical else 0
+            if not historical:
+                return {"forecast": [0.0] * periods, "method": "linear_extrapolation", "r2": None}
+            trend = (historical[-1] - historical[0]) / max(len(historical) - 1, 1)
             forecast = [round(historical[-1] + trend * i, 2) for i in range(1, periods + 1)]
             return {"forecast": forecast, "method": "linear_extrapolation", "r2": None}
 
