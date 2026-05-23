@@ -19,6 +19,22 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── password gate (opt-in via STREAMLIT_PASSWORD env var) ────────────────────
+_APP_PASSWORD = os.environ.get("STREAMLIT_PASSWORD", "")
+if _APP_PASSWORD:
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+    if not st.session_state.authenticated:
+        st.title("AI CFO System — Login")
+        pwd = st.text_input("Password", type="password", key="_login_pwd")
+        if st.button("Sign in"):
+            if pwd == _APP_PASSWORD:
+                st.session_state.authenticated = True
+                st.rerun()
+            else:
+                st.error("Incorrect password.")
+        st.stop()
+
 # ── custom CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
 <style>

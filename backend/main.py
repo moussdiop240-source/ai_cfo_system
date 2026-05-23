@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
@@ -47,9 +47,12 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(RequestLoggerMiddleware)
+_cors_raw = os.environ.get("CORS_ORIGINS", "")
+_cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()] if _cors_raw else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -124,7 +127,31 @@ def config_backend():
         "model": model,
         "data_residency": "local" if llm_backend == "ollama" else "cloud",
         "cloud_calls_enabled": bool(anthropic_key),
+        "rate_limit_backend": "redis" if os.environ.get("REDIS_URL") else "memory",
+        "cors_origins": _cors_origins,
     }
+
+
+@app.get("/metrics/prometheus", response_class=Response)
+def metrics_prometheus():
+    """Prometheus text-format metrics endpoint (scrape-compatible)."""
+    import backend.middleware.request_logger as _rl
+    from fastapi.responses import Response
+
+    uptime = round(get_uptime_seconds(), 1)
+    lines = [
+        "# HELP ai_cfo_requests_total Total HTTP requests processed",
+        "# TYPE ai_cfo_requests_total counter",
+        f"ai_cfo_requests_total {_rl.requests_total}",
+        "# HELP ai_cfo_errors_total Total HTTP 5xx responses",
+        "# TYPE ai_cfo_errors_total counter",
+        f"ai_cfo_errors_total {_rl.errors_total}",
+        "# HELP ai_cfo_uptime_seconds Seconds since process start",
+        "# TYPE ai_cfo_uptime_seconds gauge",
+        f"ai_cfo_uptime_seconds {uptime}",
+        "",
+    ]
+    return Response(content="\n".join(lines), media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 @app.get("/")
