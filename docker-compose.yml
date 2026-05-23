@@ -1,28 +1,17 @@
 version: "3.9"
 
-services:
-  # ── FastAPI Backend ────────────────────────────────────────────────────────
-  api:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://cfo_user:cfo_pass@db:5432/ai_cfo_db
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ENVIRONMENT=production
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app/backend
-    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+# Usage:
+#   Local dev (SQLite, no GPU):   docker compose up api streamlit
+#   Full stack (pgvector):        docker compose up
+#   With Ollama (local LLM):      docker compose --profile ollama up
 
+services:
   # ── PostgreSQL + pgvector ──────────────────────────────────────────────────
   db:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_DB: ai_cfo_db
-      POSTGRES_USER: cfo_user
+      POSTGRES_DB:       ai_cfo_db
+      POSTGRES_USER:     cfo_user
       POSTGRES_PASSWORD: cfo_pass
     ports:
       - "5432:5432"
@@ -35,6 +24,64 @@ services:
       timeout: 5s
       retries: 10
 
+  # ── Knowledge Base Indexer (runs once at startup) ──────────────────────────
+  kb-init:
+    build: .
+    environment:
+      PGVECTOR_URL: postgresql://cfo_user:cfo_pass@db:5432/ai_cfo_db
+      LLM_BACKEND:  ${LLM_BACKEND:-anthropic}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: python scripts/index_knowledge_base.py
+    restart: "no"
+
+  # ── FastAPI Backend ────────────────────────────────────────────────────────
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL:  postgresql://cfo_user:cfo_pass@db:5432/ai_cfo_db
+      PGVECTOR_URL:  postgresql://cfo_user:cfo_pass@db:5432/ai_cfo_db
+      LLM_BACKEND:   ${LLM_BACKEND:-anthropic}
+      ENVIRONMENT:   ${ENVIRONMENT:-production}
+    depends_on:
+      db:
+        condition: service_healthy
+      kb-init:
+        condition: service_completed_successfully
+    volumes:
+      - ./data:/app/data
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 2
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Streamlit Dashboard ────────────────────────────────────────────────────
+  streamlit:
+    build: .
+    ports:
+      - "8501:8501"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL:  postgresql://cfo_user:cfo_pass@db:5432/ai_cfo_db
+      PGVECTOR_URL:  postgresql://cfo_user:cfo_pass@db:5432/ai_cfo_db
+      API_BASE_URL:  http://api:8000
+      LLM_BACKEND:   ${LLM_BACKEND:-anthropic}
+      ENVIRONMENT:   ${ENVIRONMENT:-production}
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    command: streamlit run streamlit_app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+
   # ── Nginx reverse proxy ────────────────────────────────────────────────────
   nginx:
     image: nginx:alpine
@@ -44,6 +91,34 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - api
+      - streamlit
+
+  # ── Ollama (optional local LLM — CPU mode) ─────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: "24h"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ── Ollama model pull (runs once when ollama profile is active) ────────────
+  ollama-pull:
+    image: ollama/ollama:latest
+    profiles: ["ollama"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: ["ollama", "pull", "llama3"]
+    restart: "no"
 
 volumes:
   pgdata:
+  ollama_data:
