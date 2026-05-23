@@ -180,7 +180,7 @@ class TestDataAgentLLMPath:
 
         with patch("backend.agents.data_agent.INSTRUCTOR_AVAILABLE", True), \
              patch("backend.agents.data_agent.instructor") as mock_instructor, \
-             patch("backend.agents.data_agent.anthropic") as mock_ant, \
+             patch("backend.agents.data_agent.anthropic"), \
              patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"}):
             mock_instructor.from_anthropic.return_value = mock_client
             state = {**minimal_state, "raw_financial_data": "MockCo revenue $5M Q1 2026"}

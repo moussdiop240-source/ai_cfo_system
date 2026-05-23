@@ -17,10 +17,9 @@ Usage:
 from __future__ import annotations
 
 import io
-import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 # Numeric fields in FinancialDataSchema that should be coerced to float
 _NUMERIC_FIELDS = {

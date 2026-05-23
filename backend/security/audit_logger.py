@@ -182,7 +182,7 @@ class SecurityAuditLogger:
         try:
             with open(self._path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
-            return [json.loads(l) for l in lines[-n:] if l.strip()]
+            return [json.loads(ln) for ln in lines[-n:] if ln.strip()]
         except FileNotFoundError:
             return []
         except Exception:

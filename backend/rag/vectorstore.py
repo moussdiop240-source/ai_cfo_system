@@ -6,12 +6,10 @@ Same interface as pgvector path in pipeline.py so the two are interchangeable.
 """
 from __future__ import annotations
 
-import hashlib
 import json
-import os
 import sqlite3
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 class SQLiteVectorStore:

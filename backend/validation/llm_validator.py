@@ -283,9 +283,9 @@ def _extract_text(output: Dict) -> str:
 def _extract_known_values(math: Dict) -> List[float]:
     """Pull numeric values from math_results to cross-check against narrative."""
     values = []
-    for field in ("revenue", "net_income", "ebitda", "gross_profit", "total_assets",
+    for fname in ("revenue", "net_income", "ebitda", "gross_profit", "total_assets",
                   "total_debt", "cash", "net_debt"):
-        v = math.get(field)
+        v = math.get(fname)
         if isinstance(v, (int, float)) and v > 0:
             values.append(float(v))
     kpis = math.get("kpi_metrics") or {}

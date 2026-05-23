@@ -265,7 +265,6 @@ class GAAPEngine:
         issues = []
 
         deferred_revenue = float(data.get("deferred_revenue", 0))
-        contract_assets   = float(data.get("contract_assets", 0))
         revenue = float(data.get("revenue", 0))
 
         rev_recognition_policy = data.get("revenue_recognition_policy", "")
@@ -311,7 +310,6 @@ class GAAPEngine:
         effective_tax_rate = (kpis or {}).get("effective_tax_rate") or float(data.get("effective_tax_rate", 21.0))
 
         if dta > 0:
-            va_pct = round(valuation_allowance / dta * 100, 1) if dta else 0
             if net_income < 0 and valuation_allowance == 0:
                 issues.append(
                     f"DTA ${dta:,.0f} with no valuation allowance despite net losses — "

@@ -79,8 +79,10 @@ DEFAULT_DATA = {
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 def fmt(v, prefix="$", suffix=""):
-    if abs(v) >= 1_000_000: return f"{prefix}{v/1_000_000:.1f}M{suffix}"
-    if abs(v) >= 1_000:     return f"{prefix}{v/1_000:.0f}K{suffix}"
+    if abs(v) >= 1_000_000:
+        return f"{prefix}{v/1_000_000:.1f}M{suffix}"
+    if abs(v) >= 1_000:
+        return f"{prefix}{v/1_000:.0f}K{suffix}"
     return f"{prefix}{v:,.0f}{suffix}"
 
 def status_badge(s):
@@ -1190,7 +1192,7 @@ with tabs[8]:
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Capital Expenditures",  fmt(_capex))
-    c2.metric("Free Cash Flow",        fmt(_fcf),   f"OCF − CapEx")
+    c2.metric("Free Cash Flow",        fmt(_fcf),   "OCF − CapEx")
     c3.metric("CapEx / Revenue",       f"{_capex / _rev * 100:.1f}%")
     c4.metric("FCF Margin",            f"{_fcf / _rev * 100:.1f}%")
 

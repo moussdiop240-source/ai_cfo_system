@@ -20,7 +20,6 @@ from backend.agents.analysis_agent import analysis_agent_node
 from backend.validation.llm_validator import (
     AnalysisOutputValidator,
     LLMOutputSanitizer,
-    ValidationResult,
 )
 
 

@@ -208,7 +208,7 @@ class TestRAGPipelineSQLite:
 
     def test_lazy_indexing_populates_store(self, rag_pipeline_sqlite):
         # First retrieve triggers lazy indexing of the 20-doc KB
-        results = rag_pipeline_sqlite.retrieve("working capital", top_k=1)
+        rag_pipeline_sqlite.retrieve("working capital", top_k=1)
         assert rag_pipeline_sqlite._sqlite_store.count() > 0
 
     def test_second_retrieve_does_not_reindex(self, rag_pipeline_sqlite):

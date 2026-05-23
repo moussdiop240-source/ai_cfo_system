@@ -12,7 +12,6 @@ Covers:
 import json
 import os
 import sys
-import tempfile
 
 import pytest
 
@@ -110,7 +109,7 @@ class TestPromptInjectionDetection:
     def test_clean_inputs_not_flagged(self, clean):
         # Note: "Forget the old budget" might be flagged by some patterns.
         # The important ones above should be clean.
-        pattern = InputSanitizer.detect_prompt_injection(clean)
+        InputSanitizer.detect_prompt_injection(clean)
         # Allow None (clean) — but don't assert on the "forget" case strictly
         # since that's a borderline phrase; log it but don't block finances
 
@@ -220,7 +219,6 @@ class TestAPIKeyValidation:
     def test_timing_safe_comparison(self):
         """Ensure constant-time comparison is used (no short-circuit)."""
         # We can't test timing directly, but we verify the function is called correctly
-        import hmac
         key = "my-api-key-12345"
         assert InputSanitizer.validate_api_key(key, key) is True
 
@@ -339,7 +337,6 @@ class TestSecurityAuditLogger:
         assert len(events) == 50
 
     def test_singleton_returns_same_instance(self, tmp_path):
-        from backend.security.audit_logger import get_security_logger
         # Reset singleton
         import backend.security.audit_logger as _mod
         _mod._singleton = None

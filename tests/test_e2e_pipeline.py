@@ -13,7 +13,7 @@ anthropic client.
 """
 import os
 import sys
-from unittest.mock import MagicMock, patch, ANY
+from unittest.mock import MagicMock, patch
 
 import pytest
 

@@ -365,7 +365,6 @@ class IFRSEngine:
 
         revenue = float(data.get("revenue", 0))
         deferred_revenue = float(data.get("deferred_revenue", 0))
-        contract_assets = float(data.get("contract_assets", 0))
         rev_policy = data.get("revenue_recognition_policy", "")
 
         if revenue > 0 and not rev_policy:

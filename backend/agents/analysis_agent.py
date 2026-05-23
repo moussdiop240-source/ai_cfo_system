@@ -69,8 +69,6 @@ def _build_analysis_prompt(state: CFOAgentState) -> str:
     ifrs     = state.get("ifrs_results") or {}
     anomalies = state.get("anomaly_flags") or []
     forecast  = state.get("forecast_outputs") or {}
-    runway    = {}
-
     data = state.get("validated_data") or {}
     revenue  = data.get("revenue", 0)
     budget   = (variance.get("totals") or {}).get("budget", 0)
@@ -128,7 +126,7 @@ Every action item must include an owner and deadline."""
 def _parse_raw_analysis(text: str) -> Dict:
     """Best-effort structured parse of a raw LLM text response."""
     import re
-    lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
+    lines = [ln.strip() for ln in text.strip().splitlines() if ln.strip()]
 
     def extract_list(keyword: str) -> list:
         result, capture = [], False

@@ -66,9 +66,11 @@ class FinancialCalculationEngine:
 
     def calculate_kpis(self, data: Dict[str, Any]) -> Dict[str, float]:
         """15 exact KPIs — no rounding errors, no LLM."""
-        safe_div = lambda n, d, m=1: round((n / d) * m, 2) if d else 0.0
+        def safe_div(n, d, m=1):
+            return round((n / d) * m, 2) if d else 0.0
 
-        _f = lambda v, d=0: float(v) if v is not None else float(d)
+        def _f(v, d=0):
+            return float(v) if v is not None else float(d)
 
         revenue         = _f(data.get("revenue"), 0)
         cogs            = _f(data.get("cogs"), 0)
@@ -304,7 +306,6 @@ class FinancialCalculationEngine:
 
         # IFRS 16 vs ASC 842: operating lease reclassification
         rou_assets = float(gaap_data.get("rou_assets", 0))
-        lease_liab = float(gaap_data.get("lease_liability", 0))
         op_lease_expense = float(gaap_data.get("operating_lease_expense", 0))
         items["ifrs16_vs_asc842_ebitda"] = {
             "description": "IFRS 16 single model — operating lease expense reclassified to D&A + interest",
@@ -369,8 +370,6 @@ def math_engine_node(state: CFOAgentState) -> CFOAgentState:
 
         kpis = engine.calculate_kpis(data)
         anomalies = engine.detect_anomalies(data, kpis)
-        runway = engine.calculate_cash_runway(data, kpis)
-
         historical_rev = data.get("historical_revenue", [])
         forecast = engine.forecast_revenue(historical_rev) if len(historical_rev) >= 4 else {}
 

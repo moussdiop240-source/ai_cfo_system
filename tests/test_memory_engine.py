@@ -13,7 +13,6 @@ Covers:
 import sys
 import os
 
-import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -184,7 +183,8 @@ class TestUpdateHITL:
 
 class TestPeriodHistory:
     def test_period_history_is_sorted_chronologically(self, memory_engine, full_results):
-        import copy, time
+        import copy
+        import time
         memory_engine.save_analysis("HistCo", "Q1 2026", full_results)
         time.sleep(0.01)
         r2 = copy.deepcopy(full_results)

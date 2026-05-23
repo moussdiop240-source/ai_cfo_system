@@ -95,7 +95,6 @@ Key IFRS vs GAAP differences for this company:
 
 def _build_arbiter_prompt(state: CFOAgentState, ifrs_arg: str, gaap_arg: str) -> str:
     data  = state.get("validated_data") or {}
-    kpis  = state.get("kpi_metrics") or {}
     goodwill  = data.get("goodwill", 0)
     rd_exp    = data.get("rd_expense", 0)
     op_lease  = data.get("operating_lease_expense", 0)
@@ -136,7 +135,8 @@ def debate_agent_node(
     # Local models: 500 tok/round keeps each under ~2 min; 3 rounds = ~6 min total
     adv_tok   = 500  if is_ollama else 1500
     arb_tok   = 600  if is_ollama else 2000
-    trim      = lambda t: trim_for_local(t, max_chars=2000) if is_ollama else t
+    def trim(t):
+        return trim_for_local(t, max_chars=2000) if is_ollama else t
 
     # Round 1 — IFRS Advocate
     try:

@@ -15,7 +15,6 @@ Covers:
 import io
 import os
 import sys
-import tempfile
 
 import pytest
 
@@ -335,9 +334,8 @@ class TestIngestToSchema:
         assert schema.revenue == 12_500_000.0
 
     def test_excel_round_trip_to_schema(self):
-        try:
-            import openpyxl
-        except ImportError:
+        import importlib.util
+        if importlib.util.find_spec("openpyxl") is None:
             pytest.skip("openpyxl not installed")
         from backend.schemas.financial import FinancialDataSchema
         buf = self._make_excel_buf([

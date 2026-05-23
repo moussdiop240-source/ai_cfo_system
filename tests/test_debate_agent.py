@@ -10,7 +10,7 @@ All LLM calls are mocked via the adapter. Tests cover:
 """
 import os
 import sys
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
