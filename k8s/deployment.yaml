@@ -20,8 +20,10 @@ spec:
         runAsUser: 1001
       containers:
         - name: api
-          image: ai-cfo-system:latest
-          imagePullPolicy: IfNotPresent
+          # CI pushes ghcr.io/moussdiop240-source/ai_cfo_system:sha-<commit> on every master merge.
+          # For production rollouts pin to the specific SHA tag; :latest is updated on every push.
+          image: ghcr.io/moussdiop240-source/ai_cfo_system:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           envFrom:
@@ -60,7 +62,7 @@ spec:
           emptyDir: {}
       initContainers:
         - name: migrate
-          image: ai-cfo-system:latest
+          image: ghcr.io/moussdiop240-source/ai_cfo_system:latest
           command: ["python", "-m", "alembic", "upgrade", "head"]
           envFrom:
             - configMapRef:
