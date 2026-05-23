@@ -3,6 +3,8 @@ from datetime import datetime
 from sqlalchemy import JSON, Column, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import declarative_base
 
+from backend.security.field_encryption import EncryptedText
+
 Base = declarative_base()
 
 
@@ -24,8 +26,8 @@ class Task(Base):
     variance_table   = Column(JSON)
     gaap_results     = Column(JSON)
     ifrs_results     = Column(JSON)
-    analysis_narrative = Column(Text)
-    final_report     = Column(Text)
+    analysis_narrative = Column(EncryptedText)
+    final_report     = Column(EncryptedText)
     audit_log        = Column(JSON)
     errors           = Column(JSON)
 
@@ -45,7 +47,7 @@ class Approval(Base):
     status      = Column(String(32), default="pending")  # pending|approved|rejected
     triggers    = Column(JSON)
     decision    = Column(String(32))
-    feedback    = Column(Text)
+    feedback    = Column(EncryptedText)
     approved_by = Column(String(256))
     created_at  = Column(DateTime, default=datetime.utcnow)
     decided_at  = Column(DateTime)

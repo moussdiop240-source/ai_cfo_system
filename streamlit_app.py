@@ -19,20 +19,50 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── password gate (opt-in via STREAMLIT_PASSWORD env var) ────────────────────
+# ── auth gate ────────────────────────────────────────────────────────────────
+# Priority: STREAMLIT_USERS (per-user bcrypt) > STREAMLIT_PASSWORD (shared)
+# Leave both blank to disable auth (rely on network-level access control).
+import json as _json
+
+_USERS_RAW = os.environ.get("STREAMLIT_USERS", "")
 _APP_PASSWORD = os.environ.get("STREAMLIT_PASSWORD", "")
-if _APP_PASSWORD:
+_AUTH_ENABLED = bool(_USERS_RAW or _APP_PASSWORD)
+
+
+def _check_credentials(username: str, password: str) -> bool:
+    """Verify login credentials. Returns True if valid."""
+    if _USERS_RAW:
+        try:
+            import bcrypt as _bcrypt
+            user_map = _json.loads(_USERS_RAW)
+            stored = user_map.get(username, "")
+            if not stored:
+                return False
+            return _bcrypt.checkpw(password.encode(), stored.encode())
+        except Exception:
+            return False
+    # Fallback: single shared password (username ignored)
+    return password == _APP_PASSWORD
+
+
+if _AUTH_ENABLED:
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
+        st.session_state.current_user = ""
+
     if not st.session_state.authenticated:
         st.title("AI CFO System — Login")
-        pwd = st.text_input("Password", type="password", key="_login_pwd")
-        if st.button("Sign in"):
-            if pwd == _APP_PASSWORD:
-                st.session_state.authenticated = True
-                st.rerun()
-            else:
-                st.error("Incorrect password.")
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            uname = st.text_input("Username", key="_login_user") if _USERS_RAW else ""
+            pwd = st.text_input("Password", type="password", key="_login_pwd")
+            if st.button("Sign in", use_container_width=True):
+                if _check_credentials(uname, pwd):
+                    st.session_state.authenticated = True
+                    st.session_state.current_user = uname or "user"
+                    st.rerun()
+                else:
+                    st.error("Incorrect username or password.")
         st.stop()
 
 # ── custom CSS ───────────────────────────────────────────────────────────────
@@ -327,6 +357,16 @@ def _parse_upload(file_bytes: bytes):
 with st.sidebar:
     st.markdown("## 📊 AI CFO System")
     st.caption("Multi-Agent · Anti-Hallucination · GAAP + IFRS")
+
+    # ── user identity + logout ────────────────────────────────────────────────
+    if _AUTH_ENABLED and st.session_state.get("authenticated"):
+        _display_user = st.session_state.get("current_user", "user")
+        st.caption(f"Signed in as **{_display_user}**")
+        if st.button("Sign out", key="_logout_btn"):
+            st.session_state.authenticated = False
+            st.session_state.current_user = ""
+            st.rerun()
+
     st.divider()
 
     # ── LLM backend ──────────────────────────────────────────────────────────

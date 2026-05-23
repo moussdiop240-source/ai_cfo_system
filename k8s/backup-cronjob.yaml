@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ai-cfo-db-backup
+  namespace: ai-cfo
+spec:
+  schedule: "0 2 * * *"  # 02:00 UTC daily
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-dump
+              image: postgres:16-alpine
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  BACKUP_FILE="/backups/ai_cfo_$(date +%Y%m%d_%H%M%S).sql.gz"
+                  pg_dump "$DATABASE_URL" | gzip > "$BACKUP_FILE"
+                  echo "Backup written: $BACKUP_FILE"
+                  find /backups -name "*.sql.gz" -mtime +7 -delete
+                  echo "Old backups pruned."
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: ai-cfo-secrets
+                      key: DATABASE_URL
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+          volumes:
+            - name: backup-storage
+              emptyDir: {}
