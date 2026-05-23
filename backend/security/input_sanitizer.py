@@ -20,7 +20,7 @@ class PromptInjectionError(ValueError):
 _INJECTION_PATTERNS = [
     # Direct instruction override
     r"ignore\s+(all\s+)?(previous|prior|above)\s+instructions?",
-    r"disregard\s+(all\s+|your\s+)?(previous|prior)\s+(instructions?|context|rules?)",
+    r"disregard\s+(all\s+|your\s+)?(previous|prior|training)\s*(instructions?|context|rules?)?",
     r"forget\s+(everything|all\s+previous|your\s+instructions?)",
     # Role switching
     r"you\s+are\s+now\s+(a|an)\s+",
@@ -39,6 +39,9 @@ _INJECTION_PATTERNS = [
     r"DAN\s*(mode|jailbreak)?",
     r"developer\s+mode",
     r"jailbreak",
+    r"from\s+now\s+on",
+    r"bypass\s+(your\s+)?(filters?|restrictions?|safety|rules?)",
+    r"override\s+(your\s+|all\s+)?(safety|rules?|guidelines?|restrictions?)",
 ]
 
 _INJECTION_RE = re.compile(

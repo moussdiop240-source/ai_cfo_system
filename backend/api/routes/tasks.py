@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -165,3 +166,34 @@ def get_report(task_id: str, db: Session = Depends(get_db_dep)):
         "gaap_results": task.gaap_results,
         "ifrs_results": task.ifrs_results,
     }
+
+
+@router.get("/{task_id}/report/pdf")
+def get_report_pdf(task_id: str, db: Session = Depends(get_db_dep)):
+    """Return the board report as a downloadable PDF."""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    if not task.final_report:
+        raise HTTPException(status_code=425, detail="Report not yet generated")
+
+    try:
+        from ...reporting.pdf_generator import generate_pdf
+    except ImportError as exc:
+        raise HTTPException(status_code=500, detail=f"PDF generation unavailable: {exc}")
+
+    pdf_bytes = generate_pdf(
+        report_text=task.final_report,
+        company_name=task.company_name or "",
+        period=task.period or "",
+        kpi_metrics=task.kpi_metrics,
+        gaap_results=task.gaap_results,
+        ifrs_results=task.ifrs_results,
+    )
+
+    filename = f"report_{task.company_name or task_id}_{task.period or ''}.pdf".replace(" ", "_")
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
