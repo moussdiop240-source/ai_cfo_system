@@ -2,12 +2,13 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ...database.models import Approval, Task
 from ...database.session import get_db_dep
+from ...middleware.rate_limiter import limiter
 from ...security.rbac import RBACUser, require_role
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
@@ -48,7 +49,9 @@ def get_pending_approvals(
 
 
 @router.post("/{task_id}")
+@limiter.limit("30/minute")
 def submit_approval(
+    request: Request,
     task_id: str,
     body: ApprovalDecision,
     db: Session = Depends(get_db_dep),
