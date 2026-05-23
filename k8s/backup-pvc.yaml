@@ -1,0 +1,21 @@
+# PersistentVolumeClaim for nightly database backups.
+# Backups survive pod restarts and CronJob pod recycling.
+#
+# Sizing: 10Gi holds ~3 years of daily 10MB compressed pg_dumps.
+# Adjust storageClassName to match your cluster's provisioner:
+#   - "standard"       → most on-prem / minikube clusters
+#   - "gp2" / "gp3"   → AWS EKS
+#   - "managed-premium"→ Azure AKS
+#   - "standard-rwo"   → GKE
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ai-cfo-backup-pvc
+  namespace: ai-cfo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard
