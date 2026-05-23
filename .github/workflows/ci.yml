@@ -182,6 +182,52 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # ── CD: rolling deploy to Kubernetes ──────────────────────────────────────
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: [docker, unit-tests, smoke-tests]
+    # Only deploy on master merges AND only when KUBECONFIG secret is present.
+    # Set the KUBECONFIG secret in repo Settings → Secrets → Actions to enable CD.
+    # Leave it unset to skip deployment (CI-only mode).
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/master' &&
+      secrets.KUBECONFIG != ''
+    environment: production
+
+    steps:
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Pin image to commit SHA
+        run: |
+          IMAGE="ghcr.io/${{ github.repository }}:sha-${{ github.sha }}"
+          echo "Deploying $IMAGE"
+          kubectl set image deployment/ai-cfo-api \
+            api="$IMAGE" \
+            migrate="$IMAGE" \
+            --namespace ai-cfo
+          kubectl set image deployment/ai-cfo-api \
+            api="$IMAGE" \
+            --namespace ai-cfo
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/ai-cfo-api \
+            --namespace ai-cfo \
+            --timeout=300s
+
+      - name: Verify health endpoint
+        run: |
+          kubectl run health-check --rm -i --restart=Never \
+            --image=curlimages/curl:8.7.1 \
+            --namespace ai-cfo \
+            -- curl -sf http://ai-cfo-api/health
+
   # ── Security scan ──────────────────────────────────────────────────────────
   security-scan:
     name: Security Scan (bandit)

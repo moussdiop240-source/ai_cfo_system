@@ -1,0 +1,60 @@
+# NetworkPolicy — restricts pod-to-pod traffic for the ai-cfo-api Deployment.
+#
+# Ingress: only the nginx ingress controller (namespace: ingress-nginx) may
+#          reach port 8000 on API pods.
+# Egress:  API pods may only reach PostgreSQL (5432), Redis (6379),
+#          Ollama (11434), and cluster DNS (53 UDP/TCP).
+#
+# Requires a CNI plugin that enforces NetworkPolicy (Calico, Cilium, WeaveNet).
+# Pods without a matching NetworkPolicy are unrestricted by default.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ai-cfo-api-netpol
+  namespace: ai-cfo
+spec:
+  podSelector:
+    matchLabels:
+      app: ai-cfo-api
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    # Allow only the nginx ingress controller to reach the API
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+
+  egress:
+    # DNS resolution (required for all outbound calls)
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    # PostgreSQL
+    - ports:
+        - protocol: TCP
+          port: 5432
+
+    # Redis (rate limiter backend)
+    - ports:
+        - protocol: TCP
+          port: 6379
+
+    # Ollama (local LLM — same cluster or sidecar)
+    - ports:
+        - protocol: TCP
+          port: 11434
+
+    # Anthropic API / OTel exporter (HTTPS egress to internet)
+    - ports:
+        - protocol: TCP
+          port: 443
