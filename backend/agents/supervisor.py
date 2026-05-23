@@ -7,6 +7,8 @@ from typing import Literal
 
 from langgraph.graph import END, StateGraph
 
+from backend.tracing import agent_span
+
 try:
     from langgraph.checkpoint.memory import MemorySaver
 except ImportError:
@@ -101,35 +103,37 @@ def route_from_supervisor(
 
 def supervisor_node(state: CFOAgentState) -> CFOAgentState:
     """Supervisor node — records routing decision and pre-computes HITL triggers."""
-    # Compute approval triggers once here (in the node that returns state),
-    # not inside route_from_supervisor (which is a pure routing fn whose state changes are discarded).
-    if (
-        state.get("approval_triggers") is None
-        and state.get("kpi_metrics") is not None
-        and state.get("gaap_results") is not None
-        and state.get("ifrs_results") is not None
-    ):
-        state = compute_approval_triggers(state)
+    task_id = state.get("task_id")
+    with agent_span("supervisor", task_id=task_id) as span:
+        if (
+            state.get("approval_triggers") is None
+            and state.get("kpi_metrics") is not None
+            and state.get("gaap_results") is not None
+            and state.get("ifrs_results") is not None
+        ):
+            state = compute_approval_triggers(state)
 
-    next_agent = route_from_supervisor(state)
+        next_agent = route_from_supervisor(state)
+        span.set_attribute("supervisor.next_agent", next_agent)
+        span.set_attribute("supervisor.iteration", state.get("iteration_count", 0))
 
-    audit = list(state.get("audit_log", []))
-    audit.append({
-        "timestamp": datetime.utcnow().isoformat(),
-        "agent": "supervisor",
-        "action": "routing",
-        "next": next_agent,
-        "iteration": state.get("iteration_count", 0),
-    })
+        audit = list(state.get("audit_log", []))
+        audit.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "agent": "supervisor",
+            "action": "routing",
+            "next": next_agent,
+            "iteration": state.get("iteration_count", 0),
+        })
 
-    return {
-        **state,
-        "current_agent": "supervisor",
-        "next_agent": next_agent,
-        "iteration_count": state.get("iteration_count", 0) + 1,
-        "agent_history": [*state.get("agent_history", []), "supervisor"],
-        "audit_log": audit,
-    }
+        return {
+            **state,
+            "current_agent": "supervisor",
+            "next_agent": next_agent,
+            "iteration_count": state.get("iteration_count", 0) + 1,
+            "agent_history": [*state.get("agent_history", []), "supervisor"],
+            "audit_log": audit,
+        }
 
 
 def build_cfo_graph(db_dsn: str = None):

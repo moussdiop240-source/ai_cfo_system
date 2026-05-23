@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-cfo-config
+  namespace: ai-cfo
+data:
+  LLM_BACKEND: "ollama"
+  OLLAMA_HOST: "http://ollama-service:11434"
+  OLLAMA_MODEL: "llama3.2"
+  ANTHROPIC_MODEL: "claude-sonnet-4-6"
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"
+  VECTORSTORE_PATH: "/data/vectorstore.db"
+  # Set OTEL_EXPORTER_OTLP_ENDPOINT to enable distributed tracing
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  OTEL_SERVICE_NAME: "ai-cfo-system"

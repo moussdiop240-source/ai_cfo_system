@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-cfo-api
+  namespace: ai-cfo
+  labels:
+    app: ai-cfo-api
+spec:
+  type: ClusterIP
+  selector:
+    app: ai-cfo-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP

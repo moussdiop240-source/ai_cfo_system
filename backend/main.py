@@ -20,6 +20,7 @@ from .middleware.request_logger import (
     get_uptime_seconds,
 )
 from .security.secrets_validator import validate as validate_secrets
+from .tracing import setup_tracing
 
 
 @asynccontextmanager
@@ -41,6 +42,9 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+# ── Distributed tracing (no-op when OTEL_EXPORTER_OTLP_ENDPOINT is unset) ────
+setup_tracing(app)
 
 # ── Middleware (order matters — first added = outermost wrapper) ───────────────
 app.state.limiter = limiter
