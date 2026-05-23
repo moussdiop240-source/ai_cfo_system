@@ -1,0 +1,10 @@
+# Create the ai-cfo namespace before applying any other manifests.
+# Apply order: namespace.yaml → configmap.yaml → secret.yaml → backup-pvc.yaml
+#              → deployment.yaml → service.yaml → ingress.yaml → hpa.yaml
+#              → backup-cronjob.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-cfo
+  labels:
+    app.kubernetes.io/name: ai-cfo-system
