@@ -338,6 +338,8 @@ LOG_LEVEL=INFO
 
 See **[`DEPLOYMENT.md`](DEPLOYMENT.md)** for the complete production deployment guide covering Docker, Kubernetes, TLS, and key rotation.
 
+See **[`RELIABILITY.md`](RELIABILITY.md)** for failure handling, circuit breakers, graceful degradation, SLOs, capacity planning, and incident runbooks.
+
 ### Kubernetes Quick Reference
 
 ```bash
