@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from ...database.models import Approval, Task
 from ...database.session import get_db_dep
+from ...security.rbac import RBACUser, require_role
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 
@@ -18,7 +20,10 @@ class ApprovalDecision(BaseModel):
 
 
 @router.get("/pending")
-def get_pending_approvals(db: Session = Depends(get_db_dep)):
+def get_pending_approvals(
+    db: Session = Depends(get_db_dep),
+    _user: Optional[RBACUser] = Depends(require_role("analyst")),
+):
     """Return all tasks awaiting CFO approval."""
     tasks = db.query(Task).filter(Task.status == "awaiting_approval").all()
     return [
@@ -47,6 +52,7 @@ def submit_approval(
     task_id: str,
     body: ApprovalDecision,
     db: Session = Depends(get_db_dep),
+    _user: Optional[RBACUser] = Depends(require_role("cfo")),
 ):
     """CFO submits approval or rejection."""
     task = db.query(Task).filter(Task.id == task_id).first()

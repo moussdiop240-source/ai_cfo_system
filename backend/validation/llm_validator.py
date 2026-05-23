@@ -23,7 +23,8 @@ _ARITHMETIC_RE = re.compile(
 # Pattern for prompt injection echo markers
 _INJECTION_ECHO_RE = re.compile(
     r"(ignore\s+previous\s+instructions?|you\s+are\s+now\s+|"
-    r"disregard\s+all\s+prior|system\s*:\s*you\s+are|"
+    r"disregard\s+all\s+prior|forget\s+everything|from\s+now\s+on|"
+    r"system\s*:\s*you\s+are|override\s+(your\s+|all\s+)?(safety|rules?|guidelines?)|"
     r"act\s+as\s+(a|an)\s+\w+\s+(with\s+no|without))",
     re.IGNORECASE,
 )
