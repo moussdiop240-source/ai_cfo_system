@@ -236,11 +236,23 @@ def analysis_agent_node(
                 errors.append(f"analysis_agent fallback: {e}")
 
     if result is None:
-        return {
-            **state,
-            "errors": errors,
-            "agent_statuses": {**state.get("agent_statuses", {}), "analysis_agent": "error"},
-        }
+        # Graceful degradation: build deterministic summary from math results
+        kpis = state.get("kpi_metrics") or {}
+        degraded_text = (
+            "[LLM unavailable — deterministic summary] "
+            f"Gross margin: {kpis.get('gross_margin_pct', 'N/A')}%. "
+            f"EBITDA margin: {kpis.get('ebitda_margin_pct', 'N/A')}%. "
+            f"Net margin: {kpis.get('net_margin_pct', 'N/A')}%. "
+            f"Current ratio: {kpis.get('current_ratio', 'N/A')}."
+        )
+        result = _parse_raw_analysis(degraded_text)
+        errors.append("analysis_agent: all LLM paths failed — deterministic summary used")
+        audit.append({
+            "timestamp": datetime.utcnow().isoformat(),
+            "agent": "analysis_agent",
+            "action": "degraded_mode",
+            "reason": "all LLM backends failed",
+        })
 
     # ── Sanitize output ───────────────────────────────────────────────────────
     result = _SANITIZER.sanitize(result)

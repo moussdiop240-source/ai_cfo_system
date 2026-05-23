@@ -10,6 +10,7 @@ No API key changes needed — just switch LLM_BACKEND or pass backend="ollama".
 """
 import json
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -18,6 +19,17 @@ import httpx
 DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6"
 DEFAULT_OLLAMA_MODEL    = "llama3.2"
 DEFAULT_OLLAMA_HOST     = "http://localhost:11434"
+
+
+def _with_retry(fn, max_attempts: int = 3, base_delay: float = 2.0):
+    """Retry fn on transient network errors with exponential backoff."""
+    for attempt in range(max_attempts):
+        try:
+            return fn()
+        except (httpx.TimeoutException, httpx.ConnectError):
+            if attempt == max_attempts - 1:
+                raise
+            time.sleep(base_delay * (2 ** attempt))  # 2s, 4s, 8s
 
 
 class LLMAdapter:
@@ -131,19 +143,24 @@ class LLMAdapter:
         if json_mode:
             payload["format"] = "json"
 
-        try:
-            resp = httpx.post(
-                f"{self.ollama_host}/api/chat",
-                json=payload,
-                timeout=httpx.Timeout(connect=10.0, read=600.0, write=30.0, pool=10.0),
-            )
-            resp.raise_for_status()
-            return resp.json()["message"]["content"]
-        except httpx.ConnectError:
-            raise RuntimeError(
-                f"Cannot reach Ollama at {self.ollama_host}. "
-                "Make sure Ollama is running: `ollama serve`"
-            )
+        _timeout = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)
+
+        def _do_request():
+            try:
+                resp = httpx.post(
+                    f"{self.ollama_host}/api/chat",
+                    json=payload,
+                    timeout=_timeout,
+                )
+                resp.raise_for_status()
+                return resp.json()["message"]["content"]
+            except httpx.ConnectError:
+                raise RuntimeError(
+                    f"Cannot reach Ollama at {self.ollama_host}. "
+                    "Make sure Ollama is running: `ollama serve`"
+                )
+
+        return _with_retry(_do_request)
 
     # ── utility ──────────────────────────────────────────────────────────────
 
