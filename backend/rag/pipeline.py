@@ -173,7 +173,7 @@ class RAGPipeline:
             except Exception:
                 pass  # ImportError, DLL crash on import, or missing model
         # Deterministic pseudo-embedding — same text always gets same vector
-        digest = int(hashlib.md5(text.encode()).hexdigest(), 16)
+        digest = int(hashlib.md5(text.encode(), usedforsecurity=False).hexdigest(), 16)
         import random
         rng = random.Random(digest)
         return [rng.uniform(-1, 1) for _ in range(384)]
