@@ -1,11 +1,12 @@
 import uuid
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from ...agents.debate_agent import debate_agent_node
 from ...agents.supervisor import create_initial_state
+from ...middleware.rate_limiter import limiter
 
 router = APIRouter(prefix="/debate", tags=["debate"])
 
@@ -20,19 +21,20 @@ class DebateRequest(BaseModel):
 
 
 @router.post("/run")
-def run_debate(request: DebateRequest):
+@limiter.limit("5/minute")
+def run_debate(request: Request, body: DebateRequest):
     """Run the 3-round IFRS vs GAAP agentic debate."""
     state = create_initial_state(
         task_id=str(uuid.uuid4()),
         task_type="debate",
         task_description="IFRS vs GAAP framework debate",
-        company_name=request.company_name,
-        period=request.period,
+        company_name=body.company_name,
+        period=body.period,
         raw_financial_data={
-            **request.financial_data,
-            "jurisdiction": request.jurisdiction,
-            "listing_exchange": request.listing_exchange,
-            "industry": request.industry,
+            **body.financial_data,
+            "jurisdiction": body.jurisdiction,
+            "listing_exchange": body.listing_exchange,
+            "industry": body.industry,
         },
     )
 
@@ -52,8 +54,8 @@ def run_debate(request: DebateRequest):
         raise HTTPException(status_code=500, detail=state["errors"])
 
     return {
-        "company_name": request.company_name,
-        "period": request.period,
+        "company_name": body.company_name,
+        "period": body.period,
         "round_1_ifrs_advocate": state.get("debate_ifrs_advocate"),
         "round_2_gaap_advocate": state.get("debate_gaap_advocate"),
         "round_3_arbiter_verdict": state.get("debate_arbiter"),

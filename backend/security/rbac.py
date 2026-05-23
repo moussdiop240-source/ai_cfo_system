@@ -12,14 +12,16 @@ Usage (FastAPI):
         ...
 
 The API key is passed in the X-API-Key header. Keys are stored in
-RBAC_KEYS environment variable as JSON: {"key1": "cfo", "key2": "analyst"}
-or defaulted to a single ADMIN_API_KEY that grants "admin" role.
+RBAC_KEYS environment variable as JSON in either format:
+  Simple:  {"key1": "cfo", "key2": "analyst"}
+  Expiry:  {"key1": {"role": "cfo", "expires": "2026-12-31"}}
 """
 from __future__ import annotations
 
 import json
 import os
-from typing import Dict, Optional
+from datetime import date
+from typing import Dict, Optional, Union
 
 from fastapi import Depends, Header, HTTPException, status
 
@@ -58,8 +60,30 @@ def _load_key_map() -> Dict[str, str]:
 
 
 def _get_role(api_key: str) -> Optional[str]:
-    """Return the role for the given key, or None if not found."""
-    return _load_key_map().get(api_key)
+    """
+    Return the role for the given key, or None if not found/expired.
+
+    Supports two value formats in the key map:
+      - Plain string: {"key": "cfo"}  — no expiry
+      - Dict:         {"key": {"role": "cfo", "expires": "2026-12-31"}}
+    """
+    value: Union[str, dict, None] = _load_key_map().get(api_key)
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        role = value.get("role")
+        expires_str = value.get("expires")
+        if expires_str:
+            try:
+                expires = date.fromisoformat(expires_str)
+                if date.today() > expires:
+                    return None  # key expired
+            except ValueError:
+                return None  # malformed date — treat as expired
+        return role
+    return None
 
 
 # ── FastAPI dependencies ──────────────────────────────────────────────────────

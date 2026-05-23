@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from ...agents.supervisor import build_cfo_graph, create_initial_state
 from ...database.models import Task
 from ...database.session import SessionLocal, get_db_dep
+from ...middleware.rate_limiter import limiter
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -78,8 +79,10 @@ async def _run_pipeline(task_id: str, initial_state: dict):
 
 
 @router.post("", response_model=TaskResponse, status_code=202)
+@limiter.limit("10/minute")
 async def create_task(
-    request: TaskRequest,
+    request: Request,
+    body: TaskRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db_dep),
 ):
@@ -88,12 +91,12 @@ async def create_task(
     # Create DB record
     task = Task(
         id=task_id,
-        task_type=request.task_type,
-        description=request.task_description,
-        company_name=request.company_name,
-        period=request.period,
-        report_format=request.report_format,
-        submitted_by=request.submitted_by,
+        task_type=body.task_type,
+        description=body.task_description,
+        company_name=body.company_name,
+        period=body.period,
+        report_format=body.report_format,
+        submitted_by=body.submitted_by,
         status="running",
     )
     db.add(task)
@@ -102,13 +105,13 @@ async def create_task(
     # Build initial state
     initial_state = create_initial_state(
         task_id=task_id,
-        task_type=request.task_type,
-        task_description=request.task_description,
-        company_name=request.company_name,
-        period=request.period,
-        raw_financial_data=request.raw_financial_data,
-        submitted_by=request.submitted_by,
-        report_format=request.report_format,
+        task_type=body.task_type,
+        task_description=body.task_description,
+        company_name=body.company_name,
+        period=body.period,
+        raw_financial_data=body.raw_financial_data,
+        submitted_by=body.submitted_by,
+        report_format=body.report_format,
     )
 
     # Run pipeline in background (opens its own session)
