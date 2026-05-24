@@ -36,19 +36,28 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    from sqlalchemy import text as _text
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            render_as_batch=True,
-        )
-        with context.begin_transaction():
-            context.run_migrations()
+        is_pg = "postgresql" in str(connectable.url)
+        if is_pg:
+            connection.execute(_text("SELECT pg_advisory_lock(12345678)"))
+        try:
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                render_as_batch=True,
+            )
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            if is_pg:
+                connection.execute(_text("SELECT pg_advisory_unlock(12345678)"))
 
 
 if context.is_offline_mode():

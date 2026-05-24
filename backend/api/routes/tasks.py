@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime
 
@@ -50,7 +51,14 @@ async def _run_pipeline(task_id: str, initial_state: dict):
     graph = get_graph()
     try:
         config = {"configurable": {"thread_id": task_id}}
-        final_state = graph.invoke(initial_state, config=config)
+        loop = asyncio.get_event_loop()
+        try:
+            final_state = await asyncio.wait_for(
+                loop.run_in_executor(None, graph.invoke, initial_state, config),
+                timeout=300,
+            )
+        except asyncio.TimeoutError:
+            final_state = {**initial_state, "errors": ["Pipeline timed out after 300s"]}
 
         task = db.query(Task).filter(Task.id == task_id).first()
         if task:

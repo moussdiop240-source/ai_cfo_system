@@ -283,17 +283,28 @@ class TestAnalysisAgentNodeValidation:
         if out["agent_statuses"].get("analysis_agent") == "complete":
             assert isinstance(out.get("validation_warnings"), list)
 
-    def test_llm_failure_returns_error_status(self, base_state):
+    def test_llm_failure_uses_degraded_mode(self, base_state):
+        # Graceful degradation: all LLM paths fail → deterministic summary produced
         mock_adapter = MagicMock()
         mock_adapter.active_backend = "ollama"
         mock_adapter.active_model = "llama3"
         mock_adapter.complete.side_effect = RuntimeError("LLM timeout")
 
-        with patch("backend.agents.analysis_agent.get_adapter", return_value=mock_adapter):
+        with patch("backend.agents.analysis_agent.get_adapter", return_value=mock_adapter), \
+             patch("backend.agents.analysis_agent.AnalysisOutputValidator") as MockVal:
+            mock_vr = MagicMock()
+            mock_vr.errors = []
+            mock_vr.warnings = []
+            mock_vr.score = 0.5
+            MockVal.return_value.validate.return_value = mock_vr
             out = analysis_agent_node(base_state)
 
-        assert out["agent_statuses"]["analysis_agent"] == "error"
+        # LLM error still recorded
         assert any("ollama" in e.lower() for e in out["errors"])
+        # Degraded mode flagged
+        assert any("deterministic" in e.lower() for e in out["errors"])
+        # Pipeline continues with a non-empty narrative
+        assert out.get("analysis_narrative")
 
     def test_existing_errors_preserved(self, base_state):
         base_state["errors"] = ["pre-existing error"]

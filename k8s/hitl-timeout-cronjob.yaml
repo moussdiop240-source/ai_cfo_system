@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hitl-timeout
+  namespace: ai-cfo
+  labels:
+    app: ai-cfo
+    component: hitl-timeout
+spec:
+  schedule: "0 * * * *"   # every hour on the hour
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            app: ai-cfo
+            component: hitl-timeout
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: ai-cfo-api
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            fsGroup: 1001
+          containers:
+            - name: expire-approvals
+              image: ghcr.io/moussdiop240-source/ai-cfo-system:latest
+              imagePullPolicy: Always
+              command: ["python", "scripts/expire_stale_approvals.py"]
+              env:
+                - name: HITL_TIMEOUT_HOURS
+                  value: "48"
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: ai-cfo-secrets
+                      key: DATABASE_URL
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "256Mi"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
